@@ -1,6 +1,6 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for
 
-from Modelacion.Ejercicio_1 import (
+from Ejercicio_1 import (
     ALGORITMOS,
     congruencial_lineal,
     cumple_periodo_maximo_lineal,
