@@ -250,7 +250,7 @@ ri   = Xi / (m - 1)</code>
             <label for="algoritmo">Algoritmo</label>
             <!-- Cambiar de algoritmo recarga el formulario (GET) con los valores por defecto -->
             <select id="algoritmo" name="algoritmo"
-                    onchange="window.location.href = '{{ url_for('ejercicio_1') }}?algoritmo=' + this.value">
+                    onchange="window.location.href = `{{ url_for('ejercicio_1') }}?algoritmo=${this.value}`">
                 {% for clave, conf in algoritmos.items() %}
                 <option value="{{ clave }}" {% if algoritmo == clave %}selected{% endif %}>
                     {{ conf['nombre'] }} — {{ 'congruencial' if conf['congruencial'] else 'no congruencial' }}
