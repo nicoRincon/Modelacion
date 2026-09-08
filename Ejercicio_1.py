@@ -62,39 +62,7 @@ def cuadrados_medios(semilla, d, n_iteraciones, detener_en_ciclo=True):
         x_actual = x_siguiente                         # 4) la salida es la nueva semilla
     return {"filas": resultados, "ciclo": ciclo}
 
-
-def productos_medios(semilla_0, semilla_1, d, n_iteraciones, detener_en_ciclo=True):
-    """
-    PRODUCTOS MEDIOS (tambien NO congruencial). Se conserva por referencia:
-    la app web usa cuadrados medios, no este.
-
-    Se diferencia de cuadrados medios en que usa DOS semillas y las MULTIPLICA
-    en lugar de elevar una al cuadrado:
-        Y_i   = X_i * X_{i+1}
-        X_{i+2} = D digitos centrales de Y_i
-        r_i   = X_{i+2} / 10^D
-    En cada paso se descarta la semilla mas antigua (la ventana avanza).
-    La deteccion de ciclo mira el PAR (X_actual, X_siguiente), no un solo valor.
-    """
-    resultados = []
-    x_prev, x_actual = semilla_0, semilla_1
-    vistos = {(x_prev, x_actual): -1}          # par de semillas  ->  iteracion
-    ciclo = None
-    for i in range(n_iteraciones):
-        y_i = x_prev * x_actual                        # 1) multiplicar las dos semillas
-        x_siguiente = extraer_digitos_centrales(y_i, d)  # 2) D digitos centrales
-        r_i = x_siguiente / (10 ** d)                  # 3) normalizar a (0, 1)
-        resultados.append({"iteracion": i, "X_i": x_prev, "X_i+1_usado": x_actual,
-                            "Y_i": y_i, "X_i+2": x_siguiente, "r_i": r_i})
-        clave = (x_actual, x_siguiente)                # el par que definira el siguiente Y
-        if ciclo is None and clave in vistos:
-            ciclo = {"primera_aparicion": vistos[clave], "repite_iteracion": i,
-                      "longitud": i - vistos[clave], "valor": x_siguiente}
-            if detener_en_ciclo:
-                break
-        vistos[clave] = i
-        x_prev, x_actual = x_actual, x_siguiente       # 4) descartar la mas antigua
-    return {"filas": resultados, "ciclo": ciclo}
+ 
 
 # =====================================================================
 # 2. ALGORITMO CONGRUENCIAL: CONGRUENCIAL LINEAL
