@@ -6,8 +6,7 @@ def extraer_digitos_centrales(numero: int, d: int) -> int:
     Devuelve los D digitos centrales de 'numero'.
 
     Regla del material (Cuadrados / Productos medios):
-      - "Si no es posible obtener los D digitos centrales, se completan
-         con ceros a la IZQUIERDA".
+      - "Si no es posible obtener los D digitos centrales, se completan con ceros a la IZQUIERDA".
       - Los digitos centrales se toman quitando (len - D) / 2 digitos por
         cada lado. Para que el recorte sea simetrico la cadena debe tener
         longitud PAR (o al menos >= D); por eso:
@@ -33,7 +32,6 @@ def extraer_digitos_centrales(numero: int, d: int) -> int:
 # 1. ALGORITMO NO CONGRUENCIAL: CUADRADOS MEDIOS
 # =====================================================================
 #   * NO usa la operacion modulo -> es NO congruencial.
-#   * Propuesto por Von Neumann y Metropolis (decada de 1940).
 #   * Una sola semilla X0 de D digitos (D > 3).
 #   * Recurrencia:   Y_i = (X_i)^2   ->   X_{i+1} = D digitos centrales de Y_i
 #                    r_{i+1} = X_{i+1} / 10^D           (queda en el intervalo [0, 1))
@@ -65,37 +63,44 @@ def cuadrados_medios(semilla, d, n_iteraciones, detener_en_ciclo=True):
     return {"filas": resultados, "ciclo": ciclo}
 
 
-# (Se conserva por referencia: PRODUCTOS MEDIOS, tambien NO congruencial;
-#  se diferencia de cuadrados medios en que usa DOS semillas y las MULTIPLICA
-#  en lugar de elevar una al cuadrado.)
 def productos_medios(semilla_0, semilla_1, d, n_iteraciones, detener_en_ciclo=True):
+    """
+    PRODUCTOS MEDIOS (tambien NO congruencial). Se conserva por referencia:
+    la app web usa cuadrados medios, no este.
+
+    Se diferencia de cuadrados medios en que usa DOS semillas y las MULTIPLICA
+    en lugar de elevar una al cuadrado:
+        Y_i   = X_i * X_{i+1}
+        X_{i+2} = D digitos centrales de Y_i
+        r_i   = X_{i+2} / 10^D
+    En cada paso se descarta la semilla mas antigua (la ventana avanza).
+    La deteccion de ciclo mira el PAR (X_actual, X_siguiente), no un solo valor.
+    """
     resultados = []
     x_prev, x_actual = semilla_0, semilla_1
-    vistos = {(x_prev, x_actual): -1}
+    vistos = {(x_prev, x_actual): -1}          # par de semillas  ->  iteracion
     ciclo = None
     for i in range(n_iteraciones):
-        y_i = x_prev * x_actual
-        x_siguiente = extraer_digitos_centrales(y_i, d)
-        r_i = x_siguiente / (10 ** d)
+        y_i = x_prev * x_actual                        # 1) multiplicar las dos semillas
+        x_siguiente = extraer_digitos_centrales(y_i, d)  # 2) D digitos centrales
+        r_i = x_siguiente / (10 ** d)                  # 3) normalizar a (0, 1)
         resultados.append({"iteracion": i, "X_i": x_prev, "X_i+1_usado": x_actual,
                             "Y_i": y_i, "X_i+2": x_siguiente, "r_i": r_i})
-        clave = (x_actual, x_siguiente)
+        clave = (x_actual, x_siguiente)                # el par que definira el siguiente Y
         if ciclo is None and clave in vistos:
             ciclo = {"primera_aparicion": vistos[clave], "repite_iteracion": i,
                       "longitud": i - vistos[clave], "valor": x_siguiente}
             if detener_en_ciclo:
                 break
         vistos[clave] = i
-        x_prev, x_actual = x_actual, x_siguiente
+        x_prev, x_actual = x_actual, x_siguiente       # 4) descartar la mas antigua
     return {"filas": resultados, "ciclo": ciclo}
 
 # =====================================================================
 # 2. ALGORITMO CONGRUENCIAL: CONGRUENCIAL LINEAL
 # =====================================================================
 #   * SI usa la operacion modulo (mod m) -> es CONGRUENCIAL.
-#   * Propuesto por D. H. Lehmer (1951).
-#   * Parametros enteros positivos:  X0 (semilla), a (multiplicador),
-#     c (constante aditiva), m (modulo).
+#   * Parametros enteros positivos:  X0 (semilla), a (multiplicador), c (constante aditiva), m (modulo).
 #   * Recurrencia:   X_{i+1} = (a * X_i + c) mod m       ->   genera 0..m-1
 #                    r_i = X_i / (m - 1)                 ->   lleva a (0, 1)
 #   * Con c != 0 es "lineal"; si c = 0 se llama "multiplicativo".
@@ -177,8 +182,17 @@ ALGORITMOS = {
 # =====================================================================
 # 5. FUNCIONES DE ENTRADA POR TERMINAL
 # =====================================================================
+#   Estas funciones solo se usan al ejecutar  "python Ejercicio_1.py"
+#   (modo consola). La aplicacion web (app.py) NO las usa.
+#   Todas reintentan hasta recibir un dato valido.
 
 def pedir_entero(mensaje, valor_por_defecto=None, minimo=None, maximo=None):
+    """
+    Pide un entero por teclado y lo devuelve.
+      - Enter vacio  -> devuelve valor_por_defecto (si se dio).
+      - texto no numerico  -> avisa y vuelve a preguntar.
+      - fuera de [minimo, maximo]  -> avisa y vuelve a preguntar.
+    """
     while True:
         entrada = input(mensaje).strip()
         if entrada == "" and valor_por_defecto is not None:
@@ -198,10 +212,16 @@ def pedir_entero(mensaje, valor_por_defecto=None, minimo=None, maximo=None):
 
 
 def pedir_lista_enteros(mensaje, valor_por_defecto_str):
+    """
+    Pide varios enteros separados por comas (p. ej. "65, 89, 98") y devuelve
+    la lista [65, 89, 98]. Enter vacio usa la cadena por defecto.
+    (Lo usa el algoritmo aditivo, que necesita una secuencia previa.)
+    """
     while True:
         entrada = input(mensaje).strip()
         if entrada == "":
             entrada = valor_por_defecto_str
+        # separar por comas y descartar espacios / campos vacios
         partes = [p.strip() for p in entrada.split(",") if p.strip() != ""]
         if not partes:
             print("   -> Ingresa al menos un número.")
@@ -213,6 +233,10 @@ def pedir_lista_enteros(mensaje, valor_por_defecto_str):
 
 
 def pedir_si_no(mensaje, valor_por_defecto=True):
+    """
+    Pregunta de si/no. Devuelve True/False.
+    El sufijo [S/n] o [s/N] indica cual es la respuesta por defecto (Enter vacio).
+    """
     sufijo = " [S/n]: " if valor_por_defecto else " [s/N]: "
     while True:
         entrada = input(mensaje + sufijo).strip().lower()
@@ -226,6 +250,11 @@ def pedir_si_no(mensaje, valor_por_defecto=True):
 
 
 def elegir_algoritmo():
+    """
+    Muestra el menu de algoritmos (agrupados en no congruenciales y
+    congruenciales, leyendo el campo 'grupo' de ALGORITMOS) y devuelve la
+    clave elegida ('1', '2', ...). Reintenta si la opcion no existe.
+    """
     print("\n=== Algoritmos NO congruenciales ===")
     for clave, conf in ALGORITMOS.items():
         if conf["grupo"] == "No congruencial":
@@ -242,6 +271,11 @@ def elegir_algoritmo():
 
 
 def pedir_parametros(conf):
+    """
+    Recorre la lista 'campos' del algoritmo (definida en ALGORITMOS) y pide
+    cada parametro por teclado, usando el tipo de campo para saber si es un
+    entero suelto o una lista de enteros. Devuelve  {id_campo: valor}.
+    """
     print(f"\n--- Parámetros para: {conf['nombre']} ---")
     print(f"Fórmula: {conf['formula']}\n")
     valores = {}
@@ -257,10 +291,15 @@ def pedir_parametros(conf):
 
 
 # =====================================================================
-# 6. EJECUCIÓN Y PRESENTACIÓN DE RESULTADOS
+# 6. EJECUCIÓN Y PRESENTACIÓN DE RESULTADOS  (modo consola)
 # =====================================================================
 
 def ejecutar(algoritmo_id, valores, n, detener):
+    """
+    Despacha al generador correcto segun el 'id' del algoritmo (el campo
+    ALGORITMOS[clave]['id']) y devuelve su resultado {'filas', 'ciclo'}.
+    Es el equivalente de consola a ejecutar_algoritmo() de app.py.
+    """
     if algoritmo_id == "lineal":
         return congruencial_lineal(valores["x0"], valores["a"], valores["c"], valores["m"], n, detener)
     if algoritmo_id == "cuadrados_medios":
@@ -271,14 +310,22 @@ def ejecutar(algoritmo_id, valores, n, detener):
 
 
 def mostrar_tabla(columnas, filas, iteracion_ciclo=None):
+    """
+    Imprime la tabla de iteraciones alineada en columnas.
+      columnas       : lista de pares (clave_en_la_fila, etiqueta_a_mostrar)
+      filas          : lista de diccionarios que devuelve el generador
+      iteracion_ciclo: numero de iteracion donde el ciclo se repite (para marcarla con *)
+    """
     if not filas:
         print("No se generaron filas.")
         return
 
     def texto_celda(fila, key):
+        # los r_i se muestran con 4 decimales; el resto tal cual
         valor = fila[key]
         return f"{valor:.4f}" if key == "r_i" else str(valor)
 
+    # 1) calcular el ancho de cada columna = max(largo etiqueta, largo del dato mas largo) + 2
     anchos = []
     for key, label in columnas:
         ancho = len(label)
@@ -286,9 +333,12 @@ def mostrar_tabla(columnas, filas, iteracion_ciclo=None):
             ancho = max(ancho, len(texto_celda(fila, key)))
         anchos.append(ancho + 2)
 
+    # 2) encabezado y linea separadora
     encabezado = "".join(label.rjust(ancho) for (key, label), ancho in zip(columnas, anchos))
     print("\n" + encabezado)
     print("-" * len(encabezado))
+
+    # 3) una linea por fila; se marca con * la iteracion donde se cierra el ciclo
     for fila in filas:
         marca = "  *" if fila["iteracion"] == iteracion_ciclo else "   "
         linea = "".join(texto_celda(fila, key).rjust(ancho) for (key, label), ancho in zip(columnas, anchos))
@@ -299,6 +349,10 @@ def mostrar_tabla(columnas, filas, iteracion_ciclo=None):
 
 
 def mostrar_ciclo(ciclo, detener):
+    """
+    Explica en palabras el diccionario 'ciclo' que devuelve el generador
+    (o avisa si no se detecto ninguno).
+    """
     if not ciclo:
         print("\nNo se detectó ningún ciclo dentro del número de iteraciones generado.")
         return
@@ -315,6 +369,11 @@ def mostrar_ciclo(ciclo, detener):
 
 
 def mostrar_periodo_maximo(algoritmo_id, valores):
+    """
+    Solo para el congruencial lineal: evalua las 3 condiciones de periodo
+    maximo y las imprime con [OK]/[NO], mas un veredicto final.
+    Para cualquier otro algoritmo no hace nada.
+    """
     if algoritmo_id == "lineal":
         condiciones = cumple_periodo_maximo_lineal(valores["m"], valores["a"], valores["c"])
     else:
@@ -335,35 +394,51 @@ def mostrar_periodo_maximo(algoritmo_id, valores):
 # =====================================================================
 
 def main():
+    """
+    Bucle principal del modo consola:
+      1. elegir algoritmo          (elegir_algoritmo)
+      2. pedir sus parametros      (pedir_parametros)
+      3. pedir n y si detener      (pedir_entero / pedir_si_no)
+      4. generar la secuencia      (ejecutar)
+      5. mostrar tabla, ciclo y condiciones de periodo maximo
+      6. preguntar si se repite; si no, salir.
+    """
     print("=" * 64)
     print(" GENERADOR DE NÚMEROS PSEUDOALEATORIOS")
     print(" Modelación · Semana 3 y 4 · Universidad de Cundinamarca")
     print("=" * 64)
 
     while True:
+        # --- 1 y 2) algoritmo y parametros ---------------------------
         clave = elegir_algoritmo()
         conf = ALGORITMOS[clave]
         valores = pedir_parametros(conf)
 
+        # --- 3) cuantos numeros y si parar al detectar ciclo --------
         n = pedir_entero("\nNúmero máximo de iteraciones [50]: ", 50, minimo=1, maximo=100000)
         detener = pedir_si_no("¿Detener automáticamente al completar un ciclo?", True)
 
+        # --- 4) generar ------------------------------------------
         resultado = ejecutar(conf["id"], valores, n, detener)
         filas = resultado["filas"]
         ciclo = resultado["ciclo"]
         iteracion_ciclo = ciclo["repite_iteracion"] if ciclo else None
 
+        # --- 5) mostrar resultados -------------------------------
         print(f"\n>>> {conf['nombre']}")
         print(f">>> {conf['formula']}")
         mostrar_tabla(conf["columnas"], filas, iteracion_ciclo)
         mostrar_ciclo(ciclo, detener)
         mostrar_periodo_maximo(conf["id"], valores)
 
+        # --- 6) otra vuelta? ------------------------------------
         if not pedir_si_no("\n¿Deseas generar otra secuencia?", False):
             break
 
     print("\nHasta luego.")
 
 
+# Punto de entrada: solo corre el menu de consola si se ejecuta este archivo
+# directamente ("python Ejercicio_1.py"). Al importarlo desde app.py no pasa nada.
 if __name__ == "__main__":
     main()

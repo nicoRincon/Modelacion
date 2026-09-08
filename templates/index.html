@@ -467,6 +467,7 @@ recomendada para n &lt; 20</p>
                     <dt>D&#8315;</dt><dd>{{ "%.5f"|format(pruebas['uniformidad_ks']['d_menos']) }}</dd>
                     <dt>Estadístico D</dt><dd>{{ "%.5f"|format(pruebas['uniformidad_ks']['estadistico']) }}</dd>
                     <dt>D crítico</dt><dd>{{ "%.5f"|format(pruebas['uniformidad_ks']['critico']) }}</dd>
+                    <dt>p-valor</dt><dd>{{ "%.4f"|format(pruebas['uniformidad_ks']['p_valor']) }}</dd>
                 </dl>
                 {% endif %}
                 <p class="concl">{{ pruebas['uniformidad_ks']['conclusion'] }}</p>

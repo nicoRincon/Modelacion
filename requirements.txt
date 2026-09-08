@@ -1,3 +1,2 @@
-pandas
 flask
-numpy
+scipy
