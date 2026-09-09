@@ -13,14 +13,24 @@ app = Flask(__name__)
 ALFAS = {"0.10": 0.10, "0.05": 0.05, "0.01": 0.01}
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/index', methods=['GET', 'POST'])
 def ejercicio_1():
     return generador()
+
+
+@app.route('/')
+def inicio():
+    return render_template('Presentacion.html')
 
 
 @app.route('/congruencia-lineal', methods=['GET', 'POST'])
 def apartado_congruencia_lineal():
     return generador('2')
+
+
+@app.route('/presentacion')
+def presentacion():
+    return render_template('Presentacion.html')
 
 
 def generador(algoritmoFijo=None):
