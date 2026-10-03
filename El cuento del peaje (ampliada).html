@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>El cuento del peaje</title>
+<style>
+:root{--bg:#fff8e7;--fg:#2b2b3a;--card:#fff;--a:#2a78d6;--b:#eb6834;--c:#1baf7a;--shadow:rgba(0,0,0,.12);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1d2b;--fg:#f4f1e8;--card:#2a2a3d;--shadow:rgba(0,0,0,.5)}}
+:root[data-theme="dark"]{--bg:#1d1d2b;--fg:#f4f1e8;--card:#2a2a3d;--shadow:rgba(0,0,0,.5)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:"Comic Sans MS","Chalkboard SE","Trebuchet MS",sans-serif;overflow:hidden}
+.deck{height:100%;position:relative}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px 20px 84px;text-align:center;gap:12px;overflow-y:auto}
+.slide.on{display:flex}
+h1{font-size:clamp(2rem,6vw,3.4rem);margin:0;color:var(--b)}
+h2{font-size:clamp(1.4rem,3.8vw,2.3rem);margin:0;color:var(--a)}
+p{font-size:clamp(.95rem,2.1vw,1.3rem);max-width:820px;margin:0;line-height:1.4}
+.big{font-size:clamp(2.6rem,8vw,5rem);line-height:1}
+.row{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:980px;width:100%}
+.card{background:var(--card);border-radius:18px;padding:14px 18px;box-shadow:0 6px 16px var(--shadow);flex:1 1 220px;max-width:300px;font-size:clamp(.9rem,1.8vw,1.1rem)}
+.card b{display:block;font-size:1.1em;margin-bottom:4px}
+.tag{background:var(--c);color:#fff;border-radius:999px;padding:3px 12px;font-size:.9rem}
+.who{background:var(--b);color:#fff;border-radius:999px;padding:3px 14px;font-size:.9rem}
+.nerd{font-size:clamp(.78rem,1.6vw,.95rem);background:var(--card);border-left:6px solid var(--b);padding:8px 14px;border-radius:10px;max-width:860px;text-align:left}
+code{font-family:Consolas,monospace;color:var(--b)}
+.split{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:center;max-width:1000px;width:100%}
+.split>*{flex:1 1 300px}
+.chart{background:var(--card);border-radius:18px;padding:8px;box-shadow:0 6px 16px var(--shadow)}
+.chart svg{width:100%;height:auto;display:block;color:var(--fg)}
+.chart small{display:block;opacity:.75;font-size:.8rem}
+table{border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;font-size:clamp(.8rem,1.7vw,1rem)}
+td,th{padding:6px 12px;border-bottom:1px solid var(--shadow)}
+.ok{color:var(--c);font-weight:bold}.no{color:var(--b);font-weight:bold}
+.tw{overflow-x:auto;max-width:100%}
+.nav{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--bg)}
+button{font:inherit;font-size:1rem;border:0;border-radius:999px;padding:9px 20px;background:var(--a);color:#fff;cursor:pointer;box-shadow:0 4px 10px var(--shadow)}
+button.alt{background:var(--b);margin-top:6px}
+#cnt{opacity:.7}
+@page{size:landscape;margin:10mm}
+@media print{
+	:root{--bg:#fff;--fg:#222;--card:#fff;--shadow:rgba(0,0,0,.15)}
+	html,body{height:auto;overflow:visible;background:#fff;color:#222}
+	.deck{height:auto}
+	.slide,.slide.on{display:flex!important;position:relative;inset:auto;width:100%;height:180mm;min-height:180mm;overflow:hidden;padding:10mm;break-after:page;page-break-after:always}
+	.slide:last-child{break-after:auto;page-break-after:auto}
+	.nav,button{display:none!important}
+	.card,.chart,.nerd{box-shadow:none;border:1px solid #ddd}
+}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<section class="slide on">
+<div class="big">🚗🚕🚙</div>
+<h1>El cuento del peaje</h1>
+<p>¿Cómo hace un computador para inventar carros que pasan por un peaje?</p>
+<span class="tag">Modelación y simulación de tráfico en casetas</span>
+<p style="font-size:.95rem;opacity:.8">Equipo: Johan · Angelica · Richard · Nicolas</p>
+</section>
+
+<section class="slide">
+<div class="big">🏗️</div>
+<h2>El problema</h2>
+<p>Queremos saber si un peaje necesita más cabinas, pero no podemos probarlo en la carretera de verdad. Entonces hacemos un peaje de mentiritas dentro del computador.</p>
+<div class="row">
+<div class="card"><b>📦 Los datos</b>Mock Traffic Data (Kaggle): 6 casetas; cada vez que pasa un carro se anota su placa y la hora.</div>
+<div class="card"><b>🎯 La meta</b>Inventar carros que se comporten como los reales: cuándo llegan y cuánto tardan.</div>
+</div>
+<div class="nerd">Dataset de Bon Crowder (INFORMS 2019, flujo de costo mínimo en redes). Columnas: <code>id, plate_id, time_node_1 … time_node_6</code>.</div>
+</section>
+
+<section class="slide">
+<span class="who">Johan</span>
+<h2>Dos preguntas simples</h2>
+<div class="row">
+<div class="card"><div class="big" style="font-size:2.6rem">⏱️🚗</div><b>N: ¿cuántos carros llegan a la caseta 1 en un minuto?</b>Se cuentan de uno en uno: 0, 1, 2…<br><span class="tag">Discreta</span></div>
+<div class="card"><div class="big" style="font-size:2.6rem">🛣️⌛</div><b>T: ¿cuánto tarda un carro de la caseta 1 a la 2?</b>Puede ser 9.5 o 10.2 minutos…<br><span class="tag">Continua</span></div>
+</div>
+</section>
+
+<section class="slide">
+<span class="who">Johan</span>
+<h2>La caja de herramientas 🧰</h2>
+<div class="row">
+<div class="card"><b>pandas</b>La tabla de Excel del programador. Lee el CSV.</div>
+<div class="card"><b>numpy</b>Cuentas rápidas con muchos números.</div>
+<div class="card"><b>scipy.stats</b>Las distribuciones y las pruebas (KS, χ², Shapiro).</div>
+<div class="card"><b>statsmodels</b>Prueba de Lilliefors para la normalidad.</div>
+<div class="card"><b>matplotlib</b>Dibuja los histogramas y boxplots.</div>
+<div class="card"><b>leer_datos()</b>Abre .csv o .zip y revisa que estén las 8 columnas, como un portero de la fiesta.</div>
+</div>
+<div class="nerd"><code>leer_datos</code> detecta el separador (<code>,</code> o <code>;</code>) con <code>sep=None</code>, limpia los nombres de columnas y lanza <code>ValueError</code> si faltan. Todas las pruebas usan α = 0.05.</div>
+</section>
+
+<section class="slide">
+<span class="who">Angelica</span>
+<h2>Carros por minuto: gana Poisson 🏆</h2>
+<div class="split">
+<div class="chart"><div id="c1"></div><small>Curva Poisson con λ ≈ 2.083 (teórica, dibujada aquí)</small></div>
+<div>
+<p>Poisson sirve para contar cosas raras que pasan una por una y sin avisar, como carros que llegan.</p>
+<p style="margin-top:8px">Se comprobó así:</p>
+<div class="nerd" style="margin-top:6px">• Media ≈ varianza (índice de dispersión ≈ 1)<br>• χ²: p ≈ 0.40, no rechaza<br>• Menor AIC con un solo parámetro<br>• Se descartó la binomial negativa: ajustaba igual, pero es más compleja</div>
+</div>
+</div>
+</section>
+
+<section class="slide">
+<span class="who">Angelica</span>
+<h2>Tiempo de recorrido: gana la Normal 🔔</h2>
+<div class="split">
+<div class="chart"><div id="c2"></div><small>Normal con μ ≈ 10.02 y σ ≈ 2.60 (teórica, dibujada aquí)</small></div>
+<div>
+<p>Si sumas muchos retrasos pequeñitos (semáforo, curva, moto lenta), sale una campana. Eso dice el Teorema del Límite Central.</p>
+<div class="nerd" style="margin-top:8px">• Histograma simétrico, media ≈ mediana, Q-Q recto<br>• Shapiro, Lilliefors y otras pruebas: no rechazan<br>• Mejor en KS, χ², AIC y BIC; la Weibull queda a +17 de AIC<br>• Sin cola larga a la derecha, así que no hace falta lognormal</div>
+</div>
+</div>
+</section>
+
+<section class="slide">
+<span class="who">Richard</span>
+<h2>Paso 1: fabricar números al azar 🎲</h2>
+<div class="split">
+<div>
+<p>Receta del generador propio (GCL): multiplica, suma y quédate con el sobrante. Repite y reparte entre m para tener números entre 0 y 1.</p>
+<div class="nerd" style="margin-top:8px"><code>X(i+1) = (a·X(i) + c) mod m</code><br>a = 1664525, c = 1013904223, m = 2³²<br>Clase <code>GCL</code> con <code>aleatorio()</code> y <code>uniformes(n)</code> (excluye el 0 exacto por el log). Validado con 6 pruebas.</div>
+</div>
+<div class="chart"><div id="c3"></div><small>5 000 números del GCL: todas las barras deberían medir casi lo mismo</small><button class="alt" onclick="drawU()">🔁 Generar otros</button></div>
+</div>
+</section>
+
+<section class="slide">
+<span class="who">Richard</span>
+<h2>Paso 2: del número al azar al nº de carros 🪜</h2>
+<div class="split">
+<div class="chart"><div id="c4"></div><small>Escalera de probabilidad acumulada de Poisson</small><button class="alt" onclick="drawInv()">🎯 Sortear U</button></div>
+<div>
+<p>Sale un número U entre 0 y 1. Lo miramos en la escalera: el escalón donde cae dice cuántos carros llegaron.</p>
+<div class="nerd" style="margin-top:8px"><b>Transformada inversa discreta:</b> N = el menor k tal que F(k) ≥ U. La FDA de Poisson se calcula de forma recursiva: p(k+1) = p(k)·λ/(k+1).</div>
+</div>
+</div>
+</section>
+
+<section class="slide">
+<span class="who">Richard</span>
+<h2>Paso 3: del número al azar al tiempo ⌛</h2>
+<div class="split">
+<div>
+<p>Con dos números al azar se arma un tiempo en forma de campana (Box–Muller). Si sale negativo lo botamos, porque no hay tiempos menores que 0.</p>
+<div class="nerd" style="margin-top:8px">Z = √(−2·ln U1)·sen(2π·U2)<br>T = μ + σ·Z, con μ = 10.02 y σ = 2.60<br>Función <code>normal_box_muller()</code>, con rechazo de valores ≤ 0.</div>
+</div>
+<div class="chart"><div id="c5"></div><small>5 000 tiempos generados con nuestro GCL vs. la campana teórica</small><button class="alt" onclick="drawBM()">🔁 Generar otros</button></div>
+</div>
+</section>
+
+<section class="slide">
+<span class="who">Nicolas</span>
+<h2>¿Los carros inventados se parecen a los reales? 🔬</h2>
+<div class="tw"><table>
+<tr><th>Prueba</th><th>Compara</th><th>Resultado</th></tr>
+<tr><td>KS de dos muestras</td><td>real vs. simulado</td><td class="ok">No rechaza ✔</td></tr>
+<tr><td>t de Welch</td><td>medias</td><td class="ok">No rechaza ✔</td></tr>
+<tr><td>Levene</td><td>varianzas</td><td class="ok">No rechaza ✔</td></tr>
+<tr><td>Shapiro–Wilk</td><td>¿lo simulado es normal?</td><td class="ok">No rechaza ✔</td></tr>
+<tr><td>KS vs. Normal teórica (800 datos)</td><td>con esta semilla</td><td class="no">Rechaza (p ≈ 0.02) ✘</td></tr>
+<tr><td>KS vs. Normal teórica (100 000 datos)</td><td>misma semilla</td><td class="ok">No rechaza (p ≈ 0.87) ✔</td></tr>
+</table></div>
+<p style="font-size:1rem">"No rechaza H₀" significa que no encontramos diferencias.</p>
+</section>
+
+<section class="slide">
+<span class="who">Nicolas</span>
+<div class="big">🍀</div>
+<h2>La lección de la mala suerte</h2>
+<p>Una prueba rechazó porque, con 800 datos, la media simulada salió un poquito baja (9.78 vs. 10.02 min). Es como lanzar una moneda 10 veces y que salgan 7 caras: pasa.</p>
+<p>Con 100 000 datos el mismo generador pasa la prueba. Por eso una simulación se corre <b>varias veces (réplicas)</b>, no solo una.</p>
+<div class="nerd">La probabilidad de que el truncamiento en 0 actúe es ≈ 6 en 100 000: garantiza tiempos posibles sin cambiar la distribución.</div>
+</section>
+
+<section class="slide">
+<span class="who">Nicolas</span>
+<h2>Conclusiones y límites</h2>
+<div class="row">
+<div class="card"><b>✅ Lo logrado</b>Llegadas ~ Poisson(2.08/min) y tiempos ~ Normal(10.02, 2.60), generadas con GCL propio, transformada inversa y Box–Muller.</div>
+<div class="card"><b>🧩 Para qué sirve</b>Es el motor de una simulación de colas (M/G/c): cuántas cabinas abrir, cuánta fila habrá, qué pasa con +20 % de carros.</div>
+<div class="card"><b>⚠️ Límites</b>Datos mock de un solo día; λ constante (sin horas pico); no distingue tipos de vehículo; solo el tramo 1→2.</div>
+</div>
+</section>
+
+<section class="slide">
+<div class="big">👌</div>
+<h1>¡Gracias!</h1>
+<p>¿Preguntas?</p>
+</section>
+
+<section class="slide">
+<div class="big">🙌</div>
+<h1>Referencias</h1>
+<p>https://colab.research.google.com/drive/1DNazXU6mfM3LJAEhGmxxbEI94P0FJyM-?usp=sharing</p>
+<p>https://www.kaggle.com/datasets/mathfour/mock-traffic-data?resource=download</p>
+</section>
+
+</div>
+<div class="nav"><button id="prev">← Atrás</button><span id="cnt"></span><button id="next">Siguiente →</button></div>
+<script>
+var s=document.querySelectorAll('.slide'),i=0,cnt=document.getElementById('cnt');
+function go(n){i=Math.max(0,Math.min(s.length-1,n));s.forEach(function(e,k){e.classList.toggle('on',k===i)});cnt.textContent=(i+1)+' / '+s.length}
+document.getElementById('prev').onclick=function(){go(i-1)};
+document.getElementById('next').onclick=function(){go(i+1)};
+document.addEventListener('keydown',function(e){if(e.key==='ArrowRight'||e.key===' ')go(i+1);if(e.key==='ArrowLeft')go(i-1)});
+function gcl(seed){var x=seed%4294967296;return function(){x=(1664525*x+1013904223)%4294967296;return x/4294967296}}
+function nz(r){var u;do{u=r()}while(u===0);return u}
+var A='#2a78d6',B='#eb6834';
+// helper de dibujo: o.bars=[[x0,x1,h]], o.line=[[x,y]], o.vline=x
+function chart(id,o){var W=600,H=260,m=34,sx=function(x){return m+(x-o.x0)/(o.x1-o.x0)*(W-2*m)},sy=function(y){return H-m-y/o.ymax*(H-2*m)},t='<svg viewBox="0 0 '+W+' '+H+'"><line x1="'+m+'" y1="'+(H-m)+'" x2="'+(W-m)+'" y2="'+(H-m)+'" stroke="currentColor" opacity=".5"/>';
+(o.bars||[]).forEach(function(b){t+='<rect x="'+(sx(b[0])+1)+'" y="'+sy(b[2])+'" width="'+Math.max(1,sx(b[1])-sx(b[0])-2)+'" height="'+(H-m-sy(b[2]))+'" fill="'+(o.col||A)+'" opacity=".7"/>'});
+if(o.line)t+='<polyline fill="none" stroke="'+(o.lcol||B)+'" stroke-width="3" points="'+o.line.map(function(p){return sx(p[0]).toFixed(1)+','+sy(p[1]).toFixed(1)}).join(' ')+'"/>';
+if(o.vline!=null)t+='<line x1="'+m+'" y1="'+sy(o.vline)+'" x2="'+(W-m)+'" y2="'+sy(o.vline)+'" stroke="'+B+'" stroke-dasharray="6 4" stroke-width="2"/>';
+o.ticks.forEach(function(k){t+='<text x="'+sx(k)+'" y="'+(H-12)+'" font-size="13" text-anchor="middle" fill="currentColor">'+k+'</text>'});
+document.getElementById(id).innerHTML=t+'</svg>'}
+var lam=2.083,pm=[Math.exp(-lam)];for(var k=1;k<=12;k++)pm.push(pm[k-1]*lam/k);
+chart('c1',{x0:0,x1:10,ymax:.3,bars:pm.slice(0,10).map(function(p,k){return[k,k+1,p]}),ticks:[0,1,2,3,4,5,6,7,8,9]});
+function npdf(x,m,sd){return Math.exp(-.5*Math.pow((x-m)/sd,2))/(sd*Math.sqrt(2*Math.PI))}
+var mu=10.02,sd=2.6,nl=[];for(var x=0;x<=20;x+=.25)nl.push([x,npdf(x,mu,sd)]);
+chart('c2',{x0:0,x1:20,ymax:.17,line:nl,lcol:A,ticks:[0,5,10,15,20]});
+function drawU(){var r=gcl(Math.floor(Math.random()*1e9)),c=new Array(10).fill(0);for(var n=0;n<5000;n++)c[Math.floor(nz(r)*10)]++;
+chart('c3',{x0:0,x1:1,ymax:1.6,bars:c.map(function(v,k){return[k/10,(k+1)/10,v/500]}),line:[[0,1],[1,1]],ticks:[0,.5,1]})}
+var cdf=[],ac=0;pm.forEach(function(p){ac+=p;cdf.push(ac)});
+function drawInv(){var u=nz(gcl(Math.floor(Math.random()*1e9))),n=0;while(cdf[n]<u)n++;
+var bars=cdf.slice(0,10).map(function(F,k){return[k,k+1,F]});
+chart('c4',{x0:0,x1:10,ymax:1.05,bars:bars,col:A,vline:u,ticks:[0,1,2,3,4,5,6,7,8,9]});
+document.querySelector('#c4').nextElementSibling.textContent='U = '+u.toFixed(3)+' → llegan N = '+n+' carros'}
+function drawBM(){var r=gcl(Math.floor(Math.random()*1e9)),c=new Array(20).fill(0),tot=0;
+while(tot<5000){var u1=nz(r),u2=nz(r),z=Math.sqrt(-2*Math.log(u1)),ts=[mu+sd*z*Math.cos(2*Math.PI*u2),mu+sd*z*Math.sin(2*Math.PI*u2)];
+ts.forEach(function(t){if(t>0&&t<20&&tot<5000){c[Math.floor(t)]++;tot++}})}
+chart('c5',{x0:0,x1:20,ymax:.17,bars:c.map(function(v,k){return[k,k+1,v/5000]}),line:nl,ticks:[0,5,10,15,20]})}
+drawU();drawInv();drawBM();go(0);
+</script>
+</body>
+</html>

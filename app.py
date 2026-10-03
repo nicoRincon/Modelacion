@@ -7,6 +7,7 @@ from Ejercicio_1 import (
     cumple_periodo_maximo_lineal,
 )
 from pruebas import ejecutar_pruebas
+from VariablesAleatoria import analizar_excel
 
 app = Flask(__name__)
 
@@ -31,6 +32,17 @@ def apartado_congruencia_lineal():
 @app.route('/presentacion')
 def presentacion():
     return render_template('Presentacion.html')
+
+
+@app.route('/analisis-datos')
+def analisis_datos():
+    try:
+        analisis = analizar_excel(app.root_path + '/63496000.xlsx')
+        error = None
+    except (OSError, ValueError) as exc:
+        analisis = None
+        error = str(exc)
+    return render_template('analisis.html', analisis=analisis, error=error)
 
 
 def generador(algoritmoFijo=None):
