@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, send_from_directory
 
 from Ejercicio_1 import (
     ALGORITMOS,
@@ -8,6 +8,7 @@ from Ejercicio_1 import (
 )
 from pruebas import ejecutar_pruebas
 from VariablesAleatoria import analizar_excel
+from Modelacion import ejecutar, replicar_simulacion, PARAMETROS_DEFECTO
 
 app = Flask(__name__)
 
@@ -21,7 +22,7 @@ def ejercicio_1():
 
 @app.route('/')
 def inicio():
-    return render_template('Presentacion.html')
+    return render_template('menu.html')
 
 
 @app.route('/congruencia-lineal', methods=['GET', 'POST'])
@@ -32,6 +33,11 @@ def apartado_congruencia_lineal():
 @app.route('/presentacion')
 def presentacion():
     return render_template('Presentacion.html')
+
+
+@app.route('/cuento-peaje')
+def cuento_peaje():
+    return send_from_directory(app.root_path, 'El cuento del peaje (ampliada).html')
 
 
 @app.route('/analisis-datos')
@@ -147,6 +153,27 @@ def ejecutar_algoritmo(algoritmoSeleccionado, valoresFormulario, numeroIteracion
         numeroIteraciones, detenerEnCiclo
     )
 
+def leer_parametros(form):
+    p = {}
+    for clave, valor in PARAMETROS_DEFECTO.items():
+        texto = form.get(clave, "").strip()
+        if texto == "":
+            continue
+        p[clave] = int(texto) if clave in ("n_carros", "n_taquillas", "semilla") else float(texto)
+    return p
+
+@app.route("/peaje", methods=["GET", "POST"])
+def peaje():
+    parametros = leer_parametros(request.form) if request.method == "POST" else {}
+    resultado = ejecutar(parametros)
+
+    p = resultado["parametros"]
+    replicas = replicar_simulacion(
+        n_replicas=30,
+        **{k: v for k, v in p.items() if k != "semilla"},
+        semilla=p["semilla"],
+    )
+    return render_template("Peaje.html", replicas=replicas, **resultado)
 
 if __name__ == '__main__':
     import os
