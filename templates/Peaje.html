@@ -88,6 +88,11 @@
     .leyenda { color: var(--texto-suave); font-size: .9rem; margin-top: .6rem; }
     .leyenda i { display: inline-block; width: .9rem; height: .9rem; background: var(--carril-suave); border: 1px solid var(--carril); vertical-align: -2px; margin-right: .3rem; }
 
+
+    /* Gráfica */
+    .grafica { position: relative; height: 380px; background: var(--superficie); border: 1px solid var(--linea); border-radius: 6px; padding: .75rem; }
+    .aviso { border-left: 4px solid var(--carril); background: var(--carril-suave); padding: .7rem 1rem; margin-bottom: .9rem; border-radius: 0 4px 4px 0; }
+    .aviso.ok { border-left-color: var(--t1); background: #dcefed; }
     .nota { color: var(--texto-suave); font-size: .9rem; }
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
     @media (max-width: 560px) { .eventos th { width: 8rem; } }
@@ -98,7 +103,7 @@
     <div class="interior">
       <h1>Simulación de un peaje<br>con dos taquillas</h1>
       <p>Cada fila es un carro: cuándo llega, en qué taquilla paga, cuánto espera y cuándo sale
-         después de pagar y arrancar. Con los tiempos promedio se estima cuánto permanece un carro en el peaje.</p>
+         después de pagar y arrancar (todo en minutos). Con los tiempos promedio se estima cuánto permanece un carro en el peaje.</p>
     </div>
   </header>
 
@@ -149,6 +154,27 @@
         <div><dt>Taquilla {{ t.numero }}: {{ t.atendidos }} carros</dt><dd>{{ "%.0f"|format(t.utilizacion) }}<span>% ocupada</span></dd></div>
         {% endfor %}
       </dl>
+    </section>
+
+
+    <!-- Gráfica de estabilización -->
+    <section aria-labelledby="t-grafica">
+      <h2 id="t-grafica">Estabilización del sistema</h2>
+      {% if carga >= 1 %}
+      <p class="aviso">Las taquillas no alcanzan: llegan carros más rápido de lo que se atienden
+        (factor de carga {{ "%.2f"|format(carga) }}). La fila crece sin parar y el promedio no se estabiliza.
+        Sube el número de taquillas o aumenta el tiempo entre llegadas.</p>
+      {% elif estabilizacion %}
+      <p class="aviso ok">El promedio móvil se estabiliza cerca del carro <strong>{{ estabilizacion }}</strong>
+        (queda dentro de ±2 % de su valor final, {{ "%.2f"|format(filas[-1].promedio) }} min).
+        Los carros anteriores corresponden al periodo de calentamiento.</p>
+      {% else %}
+      <p class="aviso">El promedio móvil todavía no se estabiliza en esta corrida. Simula más carros.</p>
+      {% endif %}
+      <div class="grafica"><canvas id="grafica-estable" role="img"
+        aria-label="Promedio móvil del tiempo en el sistema por número de carro"></canvas></div>
+      <p class="nota" style="margin-top:.6rem">La línea gruesa es el promedio móvil (columna 10);
+        la línea tenue es el tiempo de cada carro (columna 9).</p>
     </section>
 
     <!-- Tabla de eventos -->
@@ -203,5 +229,59 @@
     </section>
     {% endif %}
   </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      var carros   = {{ filas | map(attribute='carro') | list | tojson }};
+      var promedio = {{ filas | map(attribute='promedio') | list | tojson }};
+      var sistema  = {{ filas | map(attribute='t_sistema') | list | tojson }};
+      var puntoEstable = {{ estabilizacion | tojson }};
+
+      // Línea vertical en el carro donde se estabiliza
+      var marcador = {
+        id: 'marcadorEstable',
+        afterDatasetsDraw: function (chart) {
+          if (!puntoEstable) return;
+          var x = chart.scales.x.getPixelForValue(puntoEstable - 1);
+          var area = chart.chartArea, ctx = chart.ctx;
+          ctx.save();
+          ctx.setLineDash([6, 4]);
+          ctx.strokeStyle = '#1f6f6b';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(x, area.top); ctx.lineTo(x, area.bottom); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#1f6f6b';
+          ctx.font = '600 12px Barlow, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText('Estable desde el carro ' + puntoEstable, x + 6, area.top + 14);
+          ctx.restore();
+        }
+      };
+
+      new Chart(document.getElementById('grafica-estable'), {
+        type: 'line',
+        data: {
+          labels: carros,
+          datasets: [
+            { label: 'Tiempo en el sistema de cada carro (min)', data: sistema,
+              borderColor: 'rgba(245,184,0,.55)', borderWidth: 1, pointRadius: 0, tension: 0 },
+            { label: 'Promedio móvil (min)', data: promedio,
+              borderColor: '#23272b', borderWidth: 3, pointRadius: 0, tension: 0 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: { title: { display: true, text: 'Número de carro' }, ticks: { maxTicksLimit: 12 } },
+            y: { title: { display: true, text: 'Minutos' }, beginAtZero: true }
+          },
+          plugins: { legend: { position: 'bottom' } }
+        },
+        plugins: [marcador]
+      });
+    })();
+  </script>
 </body>
 </html>
