@@ -171,6 +171,39 @@ def calcular_resumen(filas, n_taquillas=2):
 
 
 # --------------------------------------------------------------------------
+# Estado estable
+# --------------------------------------------------------------------------
+def detectar_estabilizacion(filas, tolerancia=0.02):
+    """
+    Devuelve el número de carro desde el cual el promedio móvil se queda
+    dentro de ±tolerancia (2 % por defecto) de su valor final.
+    Devuelve None si nunca se estabiliza (por ejemplo, si la fila crece sin parar).
+    """
+    if len(filas) < 10:
+        return None
+    final = filas[-1]["promedio"]
+    margen = abs(final) * tolerancia
+    punto = None
+    for f in reversed(filas):
+        if abs(f["promedio"] - final) <= margen:
+            punto = f["carro"]
+        else:
+            break
+    # Si solo "se estabiliza" en el último 10 % de la corrida, no es confiable
+    if punto is None or punto > 0.9 * len(filas):
+        return None
+    return punto
+
+
+def calcular_carga(media_llegadas, media_pago, media_arranque, n_taquillas):
+    """
+    Factor de carga = tiempo medio de servicio / (taquillas * tiempo entre llegadas).
+    Si es >= 1 las taquillas no alcanzan y el sistema nunca se estabiliza.
+    """
+    return (media_pago + media_arranque) / (n_taquillas * media_llegadas)
+
+
+# --------------------------------------------------------------------------
 # Réplicas e intervalo de confianza
 # --------------------------------------------------------------------------
 def replicar_simulacion(n_replicas=30, alpha=0.05, **params):
@@ -211,6 +244,9 @@ def ejecutar(parametros=None):
         "columnas": COLUMNAS,
         "filas": filas,
         "resumen": calcular_resumen(filas, p["n_taquillas"]),
+        "estabilizacion": detectar_estabilizacion(filas),
+        "carga": calcular_carga(p["media_llegadas"], p["media_pago"],
+                                p["media_arranque"], p["n_taquillas"]),
         "tabla_eventos": TABLA_EVENTOS,
     }
 
