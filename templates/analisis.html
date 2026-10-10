@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análisis de datos · Chi cuadrado</title>
+    <style>
+        :root { --ink: #20242a; --muted: #687064; --paper: #eef0e6; --card: #faf9f4;
+                --line: #c4c9b6; --accent: #b8402f; }
+        * { box-sizing: border-box; }
+        body { margin: 0; color: var(--ink); background: var(--paper); font-family: Georgia, serif;
+               background-image: repeating-linear-gradient(0deg, transparent 0 39px, rgba(196,201,182,.45) 39px 40px); }
+        main { width: min(1120px, calc(100% - 32px)); margin: auto; padding: 38px 0 70px; }
+        header { border-bottom: 2px solid var(--ink); padding-bottom: 22px; }
+        .eyebrow { margin: 0 0 10px; color: var(--accent); font: 700 .75rem Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+        h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.05; }
+        .intro { max-width: 650px; color: var(--muted); font-size: 1.08rem; line-height: 1.5; }
+        .back { color: var(--ink); font: 700 .8rem Arial, sans-serif; text-transform: uppercase; letter-spacing: .06em; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 26px 0; }
+        .stat, .chart { background: var(--card); border: 1px solid var(--line); }
+        .stat { padding: 18px 20px; border-top: 4px solid var(--accent); }
+        .stat-label { display: block; color: var(--muted); font: 700 .75rem Arial, sans-serif; text-transform: uppercase; letter-spacing: .06em; }
+        .stat-value { display: block; margin-top: 8px; font: 700 clamp(1.4rem, 3vw, 2rem) 'Courier New', monospace; }
+        .charts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+        .chart { padding: 18px; }
+        .chart.wide { grid-column: 1 / -1; }
+        h2 { margin: 0 0 4px; font-size: 1.35rem; }
+        .caption { margin: 0 0 12px; color: var(--muted); font-size: .92rem; }
+        canvas { display: block; width: 100%; height: 300px; }
+        .datos { margin-top: 14px; background: var(--card); border: 1px solid var(--line); }
+        .datos summary { padding: 18px; cursor: pointer; font-weight: 700; }
+        .tabla-wrap { overflow-x: auto; padding: 0 18px 18px; }
+        table { width: 100%; border-collapse: collapse; font: .9rem 'Courier New', monospace; }
+        th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+        th { text-align: left; font-family: Arial, sans-serif; color: var(--muted); }
+        .error { padding: 18px; background: #f6dfda; border-left: 4px solid var(--accent); }
+        @media (max-width: 720px) { .stats, .charts { grid-template-columns: 1fr; } .chart.wide { grid-column: auto; } }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <a class="back" href="{{ url_for('ejercicio_1') }}">Volver al generador</a>
+        <p class="eyebrow">Análisis exploratorio</p>
+        <h1>Datos de chi cuadrado</h1>
+        <p class="intro">Distribución de todos los valores numéricos del archivo <strong>datos_chi_cuadrado.xlsx</strong>.</p>
+    </header>
+
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% elif analisis %}
+    <section class="stats" aria-label="Resumen estadístico">
+        <article class="stat"><span class="stat-label">Número total</span><span class="stat-value">{{ analisis.cantidad }}</span></article>
+        <article class="stat"><span class="stat-label">Media</span><span class="stat-value">{{ '%.4f'|format(analisis.media) }}</span></article>
+        <article class="stat"><span class="stat-label">Desviación estándar muestral</span><span class="stat-value">{{ '%.4f'|format(analisis.desviacion_estandar) }}</span></article>
+    </section>
+
+    <section class="charts">
+        <article class="chart wide"><h2>Histograma</h2><p class="caption">Frecuencia de los valores por intervalo.</p><canvas id="histograma"></canvas></article>
+        <article class="chart"><h2>Gráfico de densidad</h2><p class="caption">Estimación suavizada de la distribución.</p><canvas id="densidad"></canvas></article>
+        <article class="chart"><h2>Boxplot</h2><p class="caption">Mediana, cuartiles y valores atípicos.</p><canvas id="boxplot"></canvas></article>
+    </section>
+
+    <details class="datos">
+        <summary>Ver los {{ analisis.cantidad }} datos originales del archivo</summary>
+        <div class="tabla-wrap">
+            <table>
+                <thead><tr><th>#</th><th>Valor</th></tr></thead>
+                <tbody>
+                {% for dato in analisis.datos %}
+                    <tr><td>{{ loop.index }}</td><td>{{ '%.6f'|format(dato) }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </details>
+    <script>
+        const analisis = {{ analisis|tojson }};
+        const color = '#b8402f'; const ink = '#20242a'; const muted = '#687064';
+        function preparar(canvas) { const escala = window.devicePixelRatio || 1; const ancho = canvas.clientWidth; const alto = canvas.clientHeight; canvas.width = ancho * escala; canvas.height = alto * escala; const contexto = canvas.getContext('2d'); contexto.scale(escala, escala); return { contexto, ancho, alto, margen: { arriba: 18, derecha: 18, abajo: 36, izquierda: 48 } }; }
+        function ejes(grafico, maximo, minimo = 0) { const { contexto, ancho, alto, margen } = grafico; contexto.strokeStyle = '#c4c9b6'; contexto.fillStyle = muted; contexto.lineWidth = 1; contexto.beginPath(); contexto.moveTo(margen.izquierda, margen.arriba); contexto.lineTo(margen.izquierda, alto - margen.abajo); contexto.lineTo(ancho - margen.derecha, alto - margen.abajo); contexto.stroke(); contexto.font = '11px Arial'; contexto.textAlign = 'right'; contexto.fillText(maximo.toFixed(0), margen.izquierda - 8, margen.arriba + 4); contexto.fillText(minimo.toFixed(0), margen.izquierda - 8, alto - margen.abajo + 4); }
+        function dibujarHistograma() { const grafico = preparar(document.querySelector('#histograma')); const { contexto, ancho, alto, margen } = grafico; const valores = analisis.histograma.frecuencias; const maximo = Math.max(...valores); ejes(grafico, maximo); const anchoUtil = ancho - margen.izquierda - margen.derecha; const altoUtil = alto - margen.arriba - margen.abajo; const anchoBarra = anchoUtil / valores.length; contexto.fillStyle = color; valores.forEach((valor, indice) => { const altura = valor / maximo * altoUtil; contexto.fillRect(margen.izquierda + indice * anchoBarra + 2, alto - margen.abajo - altura, anchoBarra - 4, altura); }); contexto.fillStyle = muted; contexto.font = '11px Arial'; contexto.textAlign = 'center'; contexto.fillText(analisis.minimo.toFixed(2), margen.izquierda, alto - 12); contexto.fillText(analisis.maximo.toFixed(2), ancho - margen.derecha, alto - 12); }
+        function dibujarDensidad() { const grafico = preparar(document.querySelector('#densidad')); const { contexto, ancho, alto, margen } = grafico; const puntos = analisis.densidad; if (!puntos.length) return; const maximo = Math.max(...puntos.map(punto => punto.y)); ejes(grafico, maximo); const anchoUtil = ancho - margen.izquierda - margen.derecha; const altoUtil = alto - margen.arriba - margen.abajo; contexto.strokeStyle = color; contexto.lineWidth = 3; contexto.beginPath(); puntos.forEach((punto, indice) => { const x = margen.izquierda + indice / (puntos.length - 1) * anchoUtil; const y = alto - margen.abajo - punto.y / maximo * altoUtil; indice ? contexto.lineTo(x, y) : contexto.moveTo(x, y); }); contexto.stroke(); contexto.fillStyle = muted; contexto.font = '11px Arial'; contexto.textAlign = 'center'; contexto.fillText(analisis.minimo.toFixed(2), margen.izquierda, alto - 12); contexto.fillText(analisis.maximo.toFixed(2), ancho - margen.derecha, alto - 12); }
+        function dibujarBoxplot() { const grafico = preparar(document.querySelector('#boxplot')); const { contexto, ancho, alto, margen } = grafico; const box = analisis.boxplot; const rango = analisis.maximo - analisis.minimo || 1; const posicion = valor => margen.izquierda + (valor - analisis.minimo) / rango * (ancho - margen.izquierda - margen.derecha); const y = alto / 2; contexto.strokeStyle = ink; contexto.fillStyle = '#dce6d8'; contexto.lineWidth = 2; contexto.beginPath(); contexto.moveTo(posicion(box.minimo), y); contexto.lineTo(posicion(box.maximo), y); contexto.stroke(); contexto.fillRect(posicion(box.cuartil_1), y - 42, posicion(box.cuartil_3) - posicion(box.cuartil_1), 84); contexto.strokeRect(posicion(box.cuartil_1), y - 42, posicion(box.cuartil_3) - posicion(box.cuartil_1), 84); [box.minimo, box.maximo].forEach(valor => { contexto.beginPath(); contexto.moveTo(posicion(valor), y - 14); contexto.lineTo(posicion(valor), y + 14); contexto.stroke(); }); contexto.strokeStyle = color; contexto.beginPath(); contexto.moveTo(posicion(box.mediana), y - 42); contexto.lineTo(posicion(box.mediana), y + 42); contexto.stroke(); contexto.fillStyle = color; box.atipicos.forEach(valor => { contexto.beginPath(); contexto.arc(posicion(valor), y, 4, 0, Math.PI * 2); contexto.fill(); }); contexto.fillStyle = muted; contexto.font = '11px Arial'; contexto.textAlign = 'center'; contexto.fillText(analisis.minimo.toFixed(2), margen.izquierda, alto - 30); contexto.fillText(analisis.maximo.toFixed(2), ancho - margen.derecha, alto - 30); }
+        dibujarHistograma(); dibujarDensidad(); dibujarBoxplot(); window.addEventListener('resize', () => { dibujarHistograma(); dibujarDensidad(); dibujarBoxplot(); });
+    </script>
+    {% endif %}
+</main>
+</body>
+</html>

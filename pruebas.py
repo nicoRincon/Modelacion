@@ -254,23 +254,3 @@ def ejecutar_pruebas(valoresAleatorios, nivelSignificancia):
         **pruebas,
     }
 
-
-if __name__ == "__main__":
-    print("norm.ppf(0.975)   =", round(float(norm.ppf(0.975)), 4), " (esperado 1.9600)")
-    print("norm.ppf(0.95)    =", round(float(norm.ppf(0.95)), 4), " (esperado 1.6449)")
-    print("chi2.ppf(0.95, 1) =", round(float(chi2.ppf(0.95, 1)), 4), " (esperado 3.8415)")
-    print("chi2.ppf(0.95, 9) =", round(float(chi2.ppf(0.95, 9)), 4), " (esperado 16.919)")
-    print("chi2.ppf(0.025,49)=", round(float(chi2.ppf(0.025, 49)), 4), " (esperado 31.555)")
-
-    datos = [
-        0.809, 0.042, 0.432, 0.538, 0.225, 0.88, 0.688, 0.772, 0.036, 0.854,
-        0.397, 0.266, 0.821, 0.897, 0.07, 0.721, 0.087, 0.35, 0.779, 0.482,
-        0.136, 0.855, 0.453, 0.197, 0.444, 0.799, 0.089, 0.691, 0.545, 0.857,
-        0.692, 0.055, 0.348, 0.373, 0.436, 0.29, 0.015, 0.834, 0.599, 0.724,
-        0.564, 0.709, 0.946, 0.754, 0.677, 0.128, 0.012, 0.498, 0.6, 0.913,
-    ]
-    ind = prueba_independencia_corridas(datos, 0.05)
-    print("\nEjemplo 2.16 -> corridas:", ind["corridas"], "| n0:", ind["n0"],
-          "| n1:", ind["n1"])
-    print("mu =", round(ind["mu"], 2), " sigma^2 =", round(ind["sigma2"], 5),
-          " Z0 =", round(ind["estadistico"], 4))

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulación de peaje con dos taquillas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --asfalto: #23272b;
+      --papel: #eef0ec;
+      --superficie: #ffffff;
+      --linea: #d4d8d1;
+      --texto: #23272b;
+      --texto-suave: #5b625c;
+      --carril: #f5b800;
+      --carril-suave: #fdf1c7;
+      --t1: #1f6f6b;
+      --t2: #a4561c;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--papel); color: var(--texto);
+      font: 400 16px/1.55 "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    h1, h2 { font-family: "Barlow Condensed", "Arial Narrow", sans-serif; font-weight: 700; margin: 0; letter-spacing: .01em; }
+    h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1.02; }
+    h2 { font-size: 1.6rem; margin-bottom: .75rem; }
+    p { margin: 0 0 .75rem; }
+
+    /* Cabecera: franja de asfalto con línea de carril */
+    .cabecera { background: var(--asfalto); color: #fff; padding: 2.5rem 1.25rem 2.25rem; position: relative; }
+    .cabecera::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: 10px; height: 4px;
+      background: repeating-linear-gradient(90deg, var(--carril) 0 36px, transparent 36px 64px);
+    }
+    .cabecera .interior { max-width: 1200px; margin: 0 auto; padding-bottom: .75rem; }
+    .cabecera p { color: #c9cec8; max-width: 62ch; margin-top: .75rem; }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 2rem 1.25rem 4rem; display: grid; gap: 2.5rem; }
+    section { min-width: 0; }
+
+    /* Formulario */
+    form { background: var(--superficie); border: 1px solid var(--linea); border-radius: 6px; padding: 1.25rem; }
+    .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; }
+    label { display: grid; gap: .3rem; font-weight: 500; font-size: .92rem; }
+    label small { color: var(--texto-suave); font-weight: 400; }
+    input { font: inherit; padding: .5rem .6rem; border: 1px solid #b9beb6; border-radius: 4px; background: #fff; width: 100%; }
+    input:focus-visible, button:focus-visible { outline: 3px solid var(--carril); outline-offset: 1px; }
+    button {
+      margin-top: 1.1rem; font: 600 1rem "Barlow", sans-serif; padding: .65rem 1.4rem; cursor: pointer;
+      background: var(--carril); color: var(--asfalto); border: 0; border-radius: 4px;
+    }
+    button:hover { background: #ffc61f; }
+
+    /* Indicadores */
+    .indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); border: 1px solid var(--linea); border-radius: 6px; background: var(--superficie); }
+    .indicadores div { padding: 1rem 1.1rem; border-right: 1px solid var(--linea); }
+    .indicadores div:last-child { border-right: 0; }
+    .indicadores dt { color: var(--texto-suave); font-size: .88rem; }
+    .indicadores dd { margin: .15rem 0 0; font: 700 1.9rem/1.1 "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; }
+    .indicadores dd span { font: 400 .9rem "Barlow", sans-serif; color: var(--texto-suave); }
+
+    /* Tabla de eventos */
+    .eventos { width: 100%; border-collapse: collapse; background: var(--superficie); border: 1px solid var(--linea); }
+    .eventos th, .eventos td { text-align: left; padding: .6rem .9rem; border-bottom: 1px solid var(--linea); vertical-align: top; }
+    .eventos th { width: 14rem; background: #e3e6df; font-weight: 600; }
+    .eventos ul { margin: 0; padding-left: 1.1rem; }
+
+    /* Tabla de simulación */
+    .contenedor-tabla { overflow-x: auto; max-height: 70vh; border: 1px solid var(--linea); border-radius: 6px; background: var(--superficie); }
+    table.sim { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .93rem; }
+    table.sim th {
+      position: sticky; top: 0; background: var(--asfalto); color: #fff; font-weight: 500;
+      padding: .6rem .7rem; text-align: right; white-space: nowrap; font-size: .85rem;
+    }
+    table.sim th:first-child, table.sim td:first-child, table.sim th:nth-child(4), table.sim td:nth-child(4) { text-align: center; }
+    table.sim td { padding: .45rem .7rem; text-align: right; border-bottom: 1px solid #ebede8; }
+    table.sim tbody tr:hover { background: #f6f7f4; }
+    table.sim tr.espera td { background: var(--carril-suave); }
+    .taq { display: inline-block; min-width: 2.2rem; padding: .05rem .5rem; border-radius: 999px; color: #fff; font-weight: 600; font-size: .82rem; }
+    .taq-1 { background: var(--t1); }
+    .taq-2 { background: var(--t2); }
+    .taq-3, .taq-4, .taq-5 { background: #5b625c; }
+    .leyenda { color: var(--texto-suave); font-size: .9rem; margin-top: .6rem; }
+    .leyenda i { display: inline-block; width: .9rem; height: .9rem; background: var(--carril-suave); border: 1px solid var(--carril); vertical-align: -2px; margin-right: .3rem; }
+
+    .nota { color: var(--texto-suave); font-size: .9rem; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    @media (max-width: 560px) { .eventos th { width: 8rem; } }
+  </style>
+</head>
+<body>
+  <header class="cabecera">
+    <div class="interior">
+      <h1>Simulación de un peaje<br>con dos taquillas</h1>
+      <p>Cada fila es un carro: cuándo llega, en qué taquilla paga, cuánto espera y cuándo sale
+         después de pagar y arrancar. Con los tiempos promedio se estima cuánto permanece un carro en el peaje.</p>
+    </div>
+  </header>
+
+  <main>
+    <!-- Parámetros -->
+    <section aria-labelledby="t-parametros">
+      <h2 id="t-parametros">Parámetros</h2>
+      <form method="post">
+        <div class="campos">
+          <label>Número de carros
+            <input type="number" name="n_carros" min="1" max="2000" value="{{ parametros.n_carros }}">
+          </label>
+          <label>Número de taquillas
+            <input type="number" name="n_taquillas" min="1" max="5" value="{{ parametros.n_taquillas }}">
+          </label>
+          <label>Media entre llegadas <small>min, exponencial</small>
+            <input type="number" step="0.1" min="0.1" name="media_llegadas" value="{{ parametros.media_llegadas }}">
+          </label>
+          <label>Media de pago <small>min, normal</small>
+            <input type="number" step="0.1" min="0.1" name="media_pago" value="{{ parametros.media_pago }}">
+          </label>
+          <label>Desviación de pago <small>min</small>
+            <input type="number" step="0.05" min="0.01" name="desv_pago" value="{{ parametros.desv_pago }}">
+          </label>
+          <label>Media de arranque <small>min, normal</small>
+            <input type="number" step="0.05" min="0.05" name="media_arranque" value="{{ parametros.media_arranque }}">
+          </label>
+          <label>Desviación de arranque <small>min</small>
+            <input type="number" step="0.01" min="0.01" name="desv_arranque" value="{{ parametros.desv_arranque }}">
+          </label>
+          <label>Semilla <small>vacía = aleatoria</small>
+            <input type="number" name="semilla" value="{{ parametros.semilla if parametros.semilla is not none else '' }}">
+          </label>
+        </div>
+        <button type="submit">Simular</button>
+      </form>
+    </section>
+
+    <!-- Resultados -->
+    <section aria-labelledby="t-resultados">
+      <h2 id="t-resultados">Resultados de la corrida</h2>
+      <dl class="indicadores">
+        <div><dt>Tiempo promedio en el sistema</dt><dd>{{ "%.2f"|format(resumen.promedio_sistema) }} <span>min</span></dd></div>
+        <div><dt>Espera promedio en fila</dt><dd>{{ "%.2f"|format(resumen.promedio_espera) }} <span>min</span></dd></div>
+        <div><dt>Espera máxima</dt><dd>{{ "%.2f"|format(resumen.max_espera) }} <span>min</span></dd></div>
+        <div><dt>Carros que esperaron</dt><dd>{{ "%.0f"|format(resumen.pct_esperaron) }}<span>%</span></dd></div>
+        {% for t in resumen.taquillas %}
+        <div><dt>Taquilla {{ t.numero }}: {{ t.atendidos }} carros</dt><dd>{{ "%.0f"|format(t.utilizacion) }}<span>% ocupada</span></dd></div>
+        {% endfor %}
+      </dl>
+    </section>
+
+    <!-- Tabla de eventos -->
+    <section aria-labelledby="t-eventos">
+      <h2 id="t-eventos">Tabla de eventos</h2>
+      <table class="eventos">
+        <tr><th>Variable de estado</th><td>{{ tabla_eventos["Variable de estado"] }}</td></tr>
+        <tr><th>Entidades</th><td>{{ tabla_eventos["Entidades"] | join(", ") }}</td></tr>
+        <tr><th>Eventos</th><td><ul>{% for e in tabla_eventos["Eventos"] %}<li>{{ e }}</li>{% endfor %}</ul></td></tr>
+        <tr><th>Evento secundario</th><td><ul>{% for e in tabla_eventos["Evento secundario"] %}<li>{{ e }}</li>{% endfor %}</ul></td></tr>
+        <tr><th>Actividades</th><td><ul>{% for e in tabla_eventos["Actividades"] %}<li>{{ e }}</li>{% endfor %}</ul></td></tr>
+      </table>
+    </section>
+
+    <!-- Tabla de simulación -->
+    <section aria-labelledby="t-tabla">
+      <h2 id="t-tabla">Tabla de simulación (minutos)</h2>
+      <div class="contenedor-tabla" tabindex="0" role="region" aria-label="Tabla de simulación, desplazable">
+        <table class="sim">
+          <thead>
+            <tr>{% for clave, titulo in columnas %}<th scope="col">{{ titulo }}</th>{% endfor %}</tr>
+          </thead>
+          <tbody>
+            {% for f in filas %}
+            <tr class="{{ 'espera' if f.t_espera > 0.000001 else '' }}">
+              {% for clave, _ in columnas %}
+                {% if clave == 'carro' %}<td>{{ f[clave] }}</td>
+                {% elif clave == 'taquilla' %}<td><span class="taq taq-{{ f[clave] }}">T{{ f[clave] }}</span></td>
+                {% else %}<td>{{ "%.3f"|format(f[clave]) }}</td>
+                {% endif %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="leyenda"><i></i>El carro tuvo que esperar a que se liberara una taquilla.</p>
+    </section>
+
+    <!-- Réplicas (opcional) -->
+    {% if replicas %}
+    <section aria-labelledby="t-replicas">
+      <h2 id="t-replicas">Réplicas del experimento</h2>
+      <dl class="indicadores">
+        <div><dt>Réplicas</dt><dd>{{ replicas.n_replicas }}</dd></div>
+        <div><dt>Promedio de promedios</dt><dd>{{ "%.3f"|format(replicas.media) }} <span>min</span></dd></div>
+        <div><dt>Desviación estándar</dt><dd>{{ "%.3f"|format(replicas.desviacion) }} <span>min</span></dd></div>
+        <div><dt>Intervalo de confianza {{ "%.0f"|format((1 - replicas.alpha) * 100) }}%</dt>
+             <dd>[{{ "%.2f"|format(replicas.ic_inferior) }}, {{ "%.2f"|format(replicas.ic_superior) }}]</dd></div>
+      </dl>
+      <p class="nota" style="margin-top:.6rem">Intervalo calculado como x̄ ± s/√(r·α), que no supone normalidad.</p>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

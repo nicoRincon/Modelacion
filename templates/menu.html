@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menú · Modelación</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --fondo: #eef0e6;
+            --tarjeta: #faf9f4;
+            --texto: #20242a;
+            --suave: #666c5e;
+            --borde: #c4c9b6;
+            --acento: #b8402f;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 48px 20px;
+            background: var(--fondo);
+            color: var(--texto);
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+        main { width: min(960px, 100%); margin: 0 auto; }
+        header { margin-bottom: 28px; }
+        .eyebrow {
+            margin: 0 0 8px;
+            color: var(--acento);
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+        }
+        h1 { margin: 0; font-size: clamp(2.2rem, 6vw, 3.5rem); }
+        header p:last-child { max-width: 620px; color: var(--suave); line-height: 1.6; }
+        nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+        a {
+            display: block;
+            min-height: 150px;
+            padding: 20px;
+            border: 1px solid var(--borde);
+            border-top: 4px solid var(--acento);
+            background: var(--tarjeta);
+            color: inherit;
+            text-decoration: none;
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+        a:hover, a:focus-visible {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgb(32 36 42 / 12%);
+        }
+        a:focus-visible { outline: 3px solid var(--acento); outline-offset: 3px; }
+        h2 { margin: 0 0 8px; font-size: 1.25rem; }
+        nav p { margin: 0; color: var(--suave); line-height: 1.5; }
+        @media (prefers-reduced-motion: reduce) {
+            a { transition: none; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <p class="eyebrow">Universidad de Cundinamarca · Modelación</p>
+        <h1>Menú principal</h1>
+        <p>Selecciona una página para abrir una presentación, revisar los análisis o ejecutar una simulación.</p>
+    </header>
+    <nav aria-label="Páginas del proyecto">
+        <a href="{{ url_for('presentacion') }}">
+            <h2>Presentación de números pseudoaleatorios</h2>
+            <p>Resumen visual de los algoritmos y las pruebas estadísticas.</p>
+        </a>
+        <a href="{{ url_for('ejercicio_1') }}">
+            <h2>Generador y pruebas</h2>
+            <p>Genera números pseudoaleatorios y valida sus propiedades.</p>
+        </a>
+        <a href="{{ url_for('analisis_datos') }}">
+            <h2>Análisis de datos</h2>
+            <p>Consulta gráficos y estadísticas de los datos de chi cuadrado.</p>
+        </a>
+        <a href="{{ url_for('peaje') }}">
+            <h2>Simulación del peaje</h2>
+            <p>Configura carros y taquillas para simular el sistema de atención.</p>
+        </a>
+        <a href="{{ url_for('cuento_peaje') }}">
+            <h2>El cuento del peaje</h2>
+            <p>Abre la presentación interactiva sobre la simulación de tráfico.</p>
+        </a>
+    </nav>
+</main>
+</body>
+</html>
