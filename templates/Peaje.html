@@ -68,9 +68,9 @@
     (ρ = {{ "%.2f"|format(carga) }} ≥ 1). La fila crece sin parar y el promedio no se estabiliza.
     Sube el número de taquillas o aumenta el tiempo entre llegadas.</p>
   {% elif estabilizacion %}
-  <p class="aviso ok">El promedio móvil se estabiliza cerca del carro <strong>{{ estabilizacion }}</strong>
-    (queda dentro de ±2 % de su valor final, {{ "%.2f"|format(filas[-1].promedio) }} min).
-    Los carros anteriores son el periodo de calentamiento.</p>
+  <p class="aviso ok">El promedio móvil se mantiene dentro de ±2 % de su valor final ({{ "%.2f"|format(filas[-1].promedio) }} min)
+    desde el carro <strong>{{ estabilizacion }}</strong>: con una sola corrida, el promedio acumulado ya no cambia de forma importante.
+    El calentamiento que se descarta en el experimento se elige con el método de Welch, promediando varias réplicas.</p>
   {% else %}
   <p class="aviso">El promedio móvil todavía no se estabiliza en esta corrida. Simula más carros.</p>
   {% endif %}
@@ -129,7 +129,8 @@
         ctx.setLineDash([]);
         ctx.fillStyle = '#1f6f6b';
         ctx.font = '600 12px Barlow, sans-serif';
-        ctx.fillText('Estable desde el carro ' + puntoEstable, x + 6, area.top + 14);
+        ctx.textAlign = 'right';
+        ctx.fillText('±2 % desde el carro ' + puntoEstable, x - 6, area.top + 14);
         ctx.restore();
       }
     };
