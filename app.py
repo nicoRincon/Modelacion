@@ -8,7 +8,10 @@ from Ejercicio_1 import (
 )
 from pruebas import ejecutar_pruebas
 from VariablesAleatoria import analizar_excel
-from Modelacion import ejecutar, replicar_simulacion, PARAMETROS_DEFECTO
+from Modelacion import (LAMBDA_OBSERVADO, PARAMETROS_DEFECTO, TABLA_EVENTOS,
+                        calcular_carga, ejecutar)
+from Experimento import CONFIG_DEFECTO, ejecutar_experimento
+from Verificacion import verificar
 
 app = Flask(__name__)
 
@@ -153,27 +156,104 @@ def ejecutar_algoritmo(algoritmoSeleccionado, valoresFormulario, numeroIteracion
         numeroIteraciones, detenerEnCiclo
     )
 
-def leer_parametros(form):
-    p = {}
-    for clave, valor in PARAMETROS_DEFECTO.items():
+# --------------------------------------------------------------------------
+# Peaje: actividad integradora
+# --------------------------------------------------------------------------
+# Límites de cada campo numérico: (tipo, mínimo, máximo)
+LIMITES = {
+    "n_carros": (int, 10, 5000),
+    "n_taquillas": (int, 1, 5),
+    "media_llegadas": (float, 0.05, 10),
+    "media_pago": (float, 0.1, 10),
+    "desv_pago": (float, 0.01, 5),
+    "media_arranque": (float, 0.05, 5),
+    "desv_arranque": (float, 0.01, 2),
+    "semilla": (int, 0, 10**9),
+    "replicas": (int, 5, 200),
+    "calentamiento": (int, 0, 2000),
+    "meta": (float, 0.1, 100),
+    "epsilon": (float, 0.001, 10),
+}
+NOMBRES = {
+    "n_carros": "Número de carros", "n_taquillas": "Número de taquillas",
+    "media_llegadas": "Media entre llegadas", "media_pago": "Media de pago",
+    "desv_pago": "Desviación de pago", "media_arranque": "Media de arranque",
+    "desv_arranque": "Desviación de arranque", "semilla": "Semilla",
+    "replicas": "Réplicas", "calentamiento": "Calentamiento", "meta": "Meta", "epsilon": "Error ε",
+}
+
+
+def leer_numeros(form, base):
+    """Copia `base` y reemplaza los campos que vengan en el formulario, validando límites."""
+    valores = dict(base)
+    for clave in base:
+        if clave not in LIMITES or clave not in form:
+            continue
         texto = form.get(clave, "").strip()
         if texto == "":
+            if clave == "semilla":
+                valores[clave] = None
             continue
-        p[clave] = int(texto) if clave in ("n_carros", "n_taquillas", "semilla") else float(texto)
-    return p
+        tipo, minimo, maximo = LIMITES[clave]
+        try:
+            numero = tipo(float(texto)) if tipo is float else int(texto)
+        except ValueError:
+            raise ValueError(f"{NOMBRES[clave]}: debe ser un número{' entero' if tipo is int else ''}.")
+        if not minimo <= numero <= maximo:
+            raise ValueError(f"{NOMBRES[clave]}: debe estar entre {minimo} y {maximo}.")
+        valores[clave] = numero
+    return valores
+
+
+@app.route("/modelo")
+def modelo():
+    p = PARAMETROS_DEFECTO
+    return render_template(
+        "modelo.html", p=p, lam=LAMBDA_OBSERVADO, meta=CONFIG_DEFECTO["meta"],
+        tabla_eventos=TABLA_EVENTOS,
+        carga=calcular_carga(p["media_llegadas"], p["media_pago"], p["media_arranque"], p["n_taquillas"]),
+    )
+
 
 @app.route("/peaje", methods=["GET", "POST"])
 def peaje():
-    parametros = leer_parametros(request.form) if request.method == "POST" else {}
-    resultado = ejecutar(parametros)
+    error = None
+    parametros = PARAMETROS_DEFECTO
+    if request.method == "POST":
+        try:
+            parametros = leer_numeros(request.form, PARAMETROS_DEFECTO)
+        except ValueError as exc:
+            error = str(exc)
+    return render_template("Peaje.html", error=error, **ejecutar(parametros))
 
-    p = resultado["parametros"]
-    replicas = replicar_simulacion(
-        n_replicas=30,
-        **{k: v for k, v in p.items() if k != "semilla"},
-        semilla=p["semilla"],
-    )
-    return render_template("Peaje.html", replicas=replicas, **resultado)
+
+@app.route("/verificacion")
+def verificacion():
+    return render_template("verificacion.html", v=verificar())
+
+
+@app.route("/experimento", methods=["GET", "POST"])
+def experimento():
+    error = None
+    config = dict(CONFIG_DEFECTO)
+    if request.method == "POST":
+        try:
+            config = leer_numeros(request.form, CONFIG_DEFECTO)
+            if config["semilla"] is None:
+                config["semilla"] = 2026
+            config["alfa"] = ALFAS.get(request.form.get("alfa"), 0.05)
+            taquillas = sorted({int(t) for t in request.form.getlist("taquillas") if t.isdigit()})
+            if len(taquillas) < 2 or not all(1 <= t <= 6 for t in taquillas):
+                raise ValueError("Escenarios: seleccione al menos dos números de taquillas.")
+            config["taquillas"] = taquillas
+            if config["calentamiento"] >= config["n_carros"] // 2:
+                raise ValueError("Calentamiento: debe ser menor que la mitad de los carros por réplica.")
+        except ValueError as exc:
+            error = str(exc)
+            config = dict(CONFIG_DEFECTO)
+    return render_template("experimento.html", config=config, error=error, alfas=ALFAS,
+                           r=ejecutar_experimento(config))
+
 
 if __name__ == '__main__':
     import os

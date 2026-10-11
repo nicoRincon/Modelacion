@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block titulo %}Verificación · Simulación del peaje{% endblock %}
+
+{% block cabecera %}
+<div class="cabecera">
+  <div class="interior">
+    <p class="ceja">Punto 6</p>
+    <h1>Verificación y validación</h1>
+    <p class="lead"><strong>Verificar</strong>: ¿el modelo está bien construido? <strong>Validar</strong>: ¿representa el peaje real?
+      Todas las revisiones se calculan en vivo cada vez que se abre esta página (semilla {{ v.p.semilla }}).</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block contenido %}
+{% set fallos = (v.relaciones + v.relaciones_larga) | rejectattr('ok') | list | length %}
+{% set entradas_mal = v.entradas | rejectattr('ok') | list | length %}
+
+<section aria-labelledby="t-resumen">
+  <h2 id="t-resumen">Resumen</h2>
+  <dl class="indicadores">
+    <div><dt>Relaciones lógico-matemáticas</dt><dd>{{ v.relaciones | length }} <span>reglas · {{ fallos }} fallos</span></dd></div>
+    <div><dt>Carros revisados</dt><dd>{{ v.p.n_carros + v.n_entradas }}</dd></div>
+    <div><dt>Variables de entrada</dt><dd>{{ v.entradas | length - entradas_mal }}/{{ v.entradas | length }} <span>pasan KS</span></dd></div>
+    <div><dt>λ simulada vs observada</dt><dd>{{ "%.3f"|format(v.lambda_sim) }} <span>vs {{ v.lambda_obs }}</span></dd></div>
+  </dl>
+</section>
+
+<!-- Verificación 1: relaciones -->
+<section aria-labelledby="t-relaciones">
+  <span class="seccion-num">Verificación 1</span>
+  <h2 id="t-relaciones">Las relaciones se cumplen en todos los carros</h2>
+  <p>Se recalcula cada regla del modelo, carro por carro, en una corrida de {{ v.p.n_carros }} carros con {{ v.p.n_taquillas }}
+    taquillas (situación actual, saturada) y en otra de {{ v.n_entradas }} carros con 4 taquillas (estable).</p>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="izq">Regla</th><th>Fallos ({{ v.p.n_taquillas }} taq.)</th><th>Fallos (4 taq.)</th><th class="cen">Resultado</th></tr></thead>
+      <tbody>
+      {% for r in v.relaciones %}
+        {% set r2 = v.relaciones_larga[loop.index0] %}
+        <tr><td class="izq">{{ r.regla }}</td><td>{{ r.fallos }}</td><td>{{ r2.fallos }}</td>
+            <td class="cen">{% if r.ok and r2.ok %}<span class="chip ok">Correcta</span>{% else %}<span class="chip mal">Error</span>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Verificación 2: traza manual -->
+<section aria-labelledby="t-traza">
+  <span class="seccion-num">Verificación 2</span>
+  <h2 id="t-traza">Cálculo a mano de los primeros carros</h2>
+  <p>Los mismos valores aparecen en la tabla de la página de simulación con semilla {{ v.p.semilla }}; se pueden revisar con calculadora.</p>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="cen">Carro</th><th class="izq">Llegada = anterior + entre llegadas</th><th class="izq">Taquillas libres en</th>
+        <th class="cen">Taq.</th><th class="izq">Inicio = MAX(llegada; libre)</th><th class="izq">Salida = inicio + pago + arranque</th><th class="izq">Espera = inicio − llegada</th></tr></thead>
+      <tbody>
+      {% for t in v.traza %}
+        <tr><td class="cen">{{ t.carro }}</td><td class="izq mono">{{ t.llegada }}</td><td class="izq mono">{{ t.libres }}</td>
+            <td class="cen"><span class="taq taq-{{ t.taquilla }}">T{{ t.taquilla }}</span></td>
+            <td class="izq mono">{{ t.inicio }}</td><td class="izq mono">{{ t.salida }}</td><td class="izq mono">{{ t.espera }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Verificación 3: entradas -->
+<section aria-labelledby="t-entradas">
+  <span class="seccion-num">Verificación 3</span>
+  <h2 id="t-entradas">Las variables aleatorias siguen la distribución definida</h2>
+  <p>Prueba de Kolmogorov-Smirnov sobre {{ v.n_entradas }} valores generados. H0: los valores siguen la distribución teórica (α = 0.05).</p>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="izq">Variable</th><th class="izq">Distribución</th><th>Media teórica</th><th>Media simulada</th>
+        <th>Desv. teórica</th><th>Desv. simulada</th><th>D</th><th>Valor-p</th><th class="cen">Decisión</th></tr></thead>
+      <tbody>
+      {% for e in v.entradas %}
+        <tr><td class="izq">{{ e.nombre }}</td><td class="izq">{{ e.distribucion }}</td>
+            <td>{{ "%.4f"|format(e.media_teorica) }}</td><td>{{ "%.4f"|format(e.media_simulada) }}</td>
+            <td>{{ "%.4f"|format(e.desv_teorica) }}</td><td>{{ "%.4f"|format(e.desv_simulada) }}</td>
+            <td>{{ "%.4f"|format(e.d) }}</td><td>{{ "%.3f"|format(e.p) }}</td>
+            <td class="cen">{% if e.ok %}<span class="chip ok">No se rechaza H0</span>{% else %}<span class="chip mal">Se rechaza H0</span>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Validación 1: llegadas -->
+<section aria-labelledby="t-val-llegadas">
+  <span class="seccion-num">Validación 1</span>
+  <h2 id="t-val-llegadas">Las llegadas simuladas se parecen a las observadas</h2>
+  <div class="rejilla">
+    <div class="tarjeta">
+      <h3>Tasa de llegadas</h3>
+      <p>Observada en el dataset: <strong>{{ v.lambda_obs }}</strong> carros/min.<br>
+         Simulada ({{ v.minutos }} minutos): <strong>{{ "%.3f"|format(v.lambda_sim) }}</strong> carros/min
+         (diferencia de {{ "%.1f"|format(100 * (v.lambda_sim - v.lambda_obs) | abs / v.lambda_obs) }} %).</p>
+    </div>
+    <div class="tarjeta">
+      <h3>Índice de dispersión</h3>
+      <p>Varianza / media de los conteos por minuto = <strong>{{ "%.2f"|format(v.dispersion) }}</strong>.
+         En una Poisson vale 1, igual que en los datos reales de la entrega anterior.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Validación 2: teoría -->
+<section aria-labelledby="t-val-teoria">
+  <span class="seccion-num">Validación 2</span>
+  <h2 id="t-val-teoria">El modelo coincide con la teoría de colas M/G/c</h2>
+  <p>Para llegadas Poisson y servicio general existe una aproximación conocida (Allen-Cunneen):</p>
+  <span class="formula">Wq(M/G/c) ≈ Wq(M/M/c, Erlang C) · (Ca² + Cs²) / 2,   W = Wq + E[S]</span>
+  <p class="nota">Ca² = 1 por ser llegadas Poisson; Cs² = Var(S)/E(S)² del tiempo de servicio S = pago + arranque.
+    Simulación: 30 réplicas de {{ v.p.n_carros }} carros, sin los primeros 200 (calentamiento).</p>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="cen">Taquillas</th><th>ρ</th><th>W simulado</th><th>W teórico</th><th>Wq simulado</th><th>Wq teórico</th><th>Diferencia en W</th></tr></thead>
+      <tbody>
+      {% for t in v.teoria %}
+        <tr><td class="cen">{{ t.c }}</td><td>{{ "%.3f"|format(t.rho) }}</td><td>{{ "%.3f"|format(t.w_sim) }}</td>
+          {% if t.w_teo is not none %}
+            <td>{{ "%.3f"|format(t.w_teo) }}</td><td>{{ "%.3f"|format(t.wq_sim) }}</td><td>{{ "%.3f"|format(t.wq_teo) }}</td>
+            <td>{{ "%.1f"|format(t.error) }} %</td>
+          {% else %}
+            <td colspan="4" class="izq">ρ ≥ 1: la teoría dice que la fila crece sin límite; la simulación lo confirma (W muy alto y depende de cuántos carros se simulen).</td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="t-limites">
+  <h2 id="t-limites">Limitaciones de la validación</h2>
+  <ul class="lista tarjeta">
+    <li>El dataset (Mock Traffic Data, Kaggle) solo registra la hora de paso de cada placa: permite validar las llegadas,
+      pero no los tiempos de pago y arranque, que son supuestos del equipo.</li>
+    <li>Los datos son simulados (“mock”) y de un solo día; λ se toma constante, sin horas pico.</li>
+    <li>No se distinguen tipos de vehículo ni medios de pago (efectivo, electrónico).</li>
+    <li>Por eso la validación es indirecta: llegadas contra datos y comportamiento del modelo contra la teoría de colas.
+      Con tiempos de servicio medidos en un peaje real, la validación se podría hacer directamente.</li>
+  </ul>
+</section>
+{% endblock %}

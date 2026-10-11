@@ -18,15 +18,20 @@ from statistics import NormalDist, mean, stdev
 # --------------------------------------------------------------------------
 # Parámetros por defecto (se pueden cambiar desde el formulario de Flask)
 # --------------------------------------------------------------------------
+# λ = 2.083 carros/min viene del ajuste Poisson de la entrega anterior
+# (Mock Traffic Data, caseta 1). Si las llegadas por minuto son Poisson(λ),
+# el tiempo entre llegadas es exponencial con media 1/λ = 0.48 min.
+LAMBDA_OBSERVADO = 2.083
+
 PARAMETROS_DEFECTO = {
-    "n_carros": 50,
-    "n_taquillas": 2,
-    "media_llegadas": 1.0,    # min/carro  (exponencial)
+    "n_carros": 1000,         # carros por corrida (≈ 8 horas de operación)
+    "n_taquillas": 2,         # situación actual
+    "media_llegadas": 0.48,   # min/carro  (exponencial, 1/λ)
     "media_pago": 1.0,        # min        (normal)
     "desv_pago": 0.2,
     "media_arranque": 0.3,    # min        (normal)
     "desv_arranque": 0.05,
-    "semilla": None,          # entero para resultados reproducibles
+    "semilla": 2026,          # entero para resultados reproducibles
 }
 
 # Tabla de eventos (equivalente a la diapositiva "Tabla de Eventos")
@@ -78,7 +83,7 @@ def generar_normal(media, desv, r):
 # --------------------------------------------------------------------------
 # Simulación de una corrida
 # --------------------------------------------------------------------------
-def simular_peaje(n_carros=50, n_taquillas=2, media_llegadas=1.0,
+def simular_peaje(n_carros=1000, n_taquillas=2, media_llegadas=0.48,
                   media_pago=1.0, desv_pago=0.2,
                   media_arranque=0.3, desv_arranque=0.05,
                   semilla=None):
@@ -204,35 +209,37 @@ def calcular_carga(media_llegadas, media_pago, media_arranque, n_taquillas):
 
 
 # --------------------------------------------------------------------------
-# Réplicas e intervalo de confianza
+# Réplicas (el análisis estadístico está en Estadistica.py)
 # --------------------------------------------------------------------------
-def replicar_simulacion(n_replicas=30, alpha=0.05, **params):
-    """
-    Repite la simulación n_replicas veces y resume el tiempo promedio en el
-    sistema de cada réplica. El intervalo de confianza usa la fórmula de la
-    presentación (no asume normalidad):  x̄ ± s / sqrt(r * α)
-    """
-    semilla = params.pop("semilla", None)
-    rng_semillas = random.Random(semilla)
-    n_taq = params.get("n_taquillas", 2)
+def promedio_sin_calentamiento(filas, calentamiento):
+    """Tiempo promedio en el sistema descartando los primeros carros (calentamiento)."""
+    utiles = filas[calentamiento:] or filas
+    return mean(f["t_sistema"] for f in utiles)
 
-    medias = []
-    for _ in range(n_replicas):
-        filas = simular_peaje(semilla=rng_semillas.random(), **params)
-        medias.append(calcular_resumen(filas, n_taq)["promedio_sistema"])
 
-    x_bar = mean(medias)
-    s = stdev(medias) if n_replicas > 1 else 0.0
-    margen = s / math.sqrt(n_replicas * alpha)
-    return {
-        "medias": medias,
-        "media": x_bar,
-        "desviacion": s,
-        "ic_inferior": x_bar - margen,
-        "ic_superior": x_bar + margen,
-        "alpha": alpha,
-        "n_replicas": n_replicas,
-    }
+def replicar_simulacion(n_replicas=30, calentamiento=100, semilla=None, **params):
+    """
+    Repite la simulación n_replicas veces. Cada réplica usa su propia semilla
+    entera (semilla, semilla+1, ...), así cualquier réplica se puede repetir.
+    Si se comparan escenarios con la misma semilla, todos reciben los mismos
+    números aleatorios (los mismos carros), lo que hace justa la comparación.
+
+    Devuelve, por réplica, el tiempo promedio en el sistema y la espera promedio
+    calculados sin los carros del calentamiento.
+    """
+    params = {k: v for k, v in {**PARAMETROS_DEFECTO, **params}.items() if k != "semilla"}
+    base = semilla if semilla is not None else random.randrange(1, 10**6)
+    replicas = []
+    for k in range(n_replicas):
+        filas = simular_peaje(semilla=base + k, **params)
+        utiles = filas[calentamiento:] or filas
+        replicas.append({
+            "replica": k + 1,
+            "semilla": base + k,
+            "t_sistema": mean(f["t_sistema"] for f in utiles),
+            "t_espera": mean(f["t_espera"] for f in utiles),
+        })
+    return replicas
 
 
 def ejecutar(parametros=None):
@@ -252,8 +259,10 @@ def ejecutar(parametros=None):
 
 
 if __name__ == "__main__":
-    r = ejecutar({"semilla": 42, "n_carros": 10})
+    r = ejecutar({"n_carros": 10})
     for f in r["filas"]:
         print({k: (round(v, 2) if isinstance(v, float) else v) for k, v in f.items()})
     print(r["resumen"])
-    print(replicar_simulacion(n_replicas=30, n_carros=50, semilla=1))
+    for c in (2, 3, 4):
+        reps = replicar_simulacion(n_replicas=30, n_taquillas=c, semilla=2026)
+        print(c, "taquillas:", round(mean(x["t_sistema"] for x in reps), 3), "min")

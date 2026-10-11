@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% block titulo %}Experimento · Simulación del peaje{% endblock %}
+
+{% macro f(x, d=3) %}{{ ("%." ~ d ~ "f")|format(x) }}{% endmacro %}
+{% macro ic(par, d=3) %}[{{ f(par[0], d) }}; {{ f(par[1], d) }}]{% endmacro %}
+{% macro decision(rechaza) %}{% if rechaza %}<span class="chip ok">Se rechaza H0</span>{% else %}<span class="chip neutro">No se rechaza H0</span>{% endif %}{% endmacro %}
+
+{% block cabecera %}
+<div class="cabecera">
+  <div class="interior">
+    <p class="ceja">Puntos 7 a 12</p>
+    <h1>Experimento, análisis y decisión</h1>
+    <p class="lead">Se simulan {{ config.replicas }} réplicas de cada escenario ({{ config.taquillas | join(", ") }} taquillas),
+      se analiza el tiempo promedio en el sistema y se responde: ¿cuántas taquillas hacen falta para que un carro
+      pase menos de {{ f(config.meta, 1) }} minutos en el peaje?</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block contenido %}
+{% set E = r.escenarios %}
+{% set conf = "%.0f"|format((1 - config.alfa) * 100) %}
+
+<!-- ============ 7. Diseño ============ -->
+<section aria-labelledby="t-diseno">
+  <span class="seccion-num">7 · Diseño y ejecución de la simulación</span>
+  <h2 id="t-diseno">Condiciones del experimento</h2>
+  {% if error %}<p class="error">{{ error }} Se muestran los valores por defecto.</p>{% endif %}
+  <form method="post" class="tarjeta">
+    <fieldset style="margin-top:0">
+      <legend>Escenarios a comparar (número de taquillas)</legend>
+      <div class="casillas">
+        {% for c in range(1, 7) %}
+        <label><input type="checkbox" name="taquillas" value="{{ c }}" {{ 'checked' if c in config.taquillas }}> {{ c }}{{ " (actual)" if c == 2 }}</label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Experimento</legend>
+      <div class="campos">
+        <label>Réplicas r <input type="number" name="replicas" min="5" max="200" required value="{{ config.replicas }}"></label>
+        <label>Carros por réplica <input type="number" name="n_carros" min="200" max="5000" required value="{{ config.n_carros }}"></label>
+        <label>Calentamiento <small>carros descartados</small><input type="number" name="calentamiento" min="0" max="2000" required value="{{ config.calentamiento }}"></label>
+        <label>Meta <small>min en el sistema</small><input type="number" name="meta" step="0.1" min="0.1" required value="{{ config.meta }}"></label>
+        <label>Nivel de significancia α
+          <select name="alfa">{% for k, v in alfas.items() %}<option value="{{ k }}" {{ 'selected' if v == config.alfa }}>{{ k }}</option>{% endfor %}</select></label>
+        <label>Error permitido ε <small>min</small><input type="number" name="epsilon" step="0.01" min="0.001" required value="{{ config.epsilon }}"></label>
+        <label>Semilla inicial <input type="number" name="semilla" min="0" required value="{{ config.semilla }}"></label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Parámetros del sistema (para análisis de sensibilidad)</legend>
+      <div class="campos">
+        <label>Media entre llegadas <small>min (1/λ)</small><input type="number" name="media_llegadas" step="0.01" min="0.05" required value="{{ config.media_llegadas }}"></label>
+        <label>Media de pago <small>min</small><input type="number" name="media_pago" step="0.05" min="0.1" required value="{{ config.media_pago }}"></label>
+        <label>Desviación de pago <small>min</small><input type="number" name="desv_pago" step="0.01" min="0.01" required value="{{ config.desv_pago }}"></label>
+        <label>Media de arranque <small>min</small><input type="number" name="media_arranque" step="0.05" min="0.05" required value="{{ config.media_arranque }}"></label>
+        <label>Desviación de arranque <small>min</small><input type="number" name="desv_arranque" step="0.01" min="0.01" required value="{{ config.desv_arranque }}"></label>
+      </div>
+    </fieldset>
+    <button type="submit">Ejecutar experimento</button>
+  </form>
+
+  <table class="ficha" style="margin-top:1rem">
+    <tr><th>Tipo de simulación</th><td>No terminal: el peaje opera de forma continua y se estudia en estado estable.</td></tr>
+    <tr><th>Horizonte</th><td>{{ config.n_carros }} carros por réplica (≈ {{ f(config.n_carros * config.media_llegadas / 60, 1) }} horas de operación).
+      Se descartan los primeros {{ config.calentamiento }} carros (calentamiento), elegidos con el método de Welch (gráfica de abajo).</td></tr>
+    <tr><th>Condiciones iniciales</th><td>Peaje vacío y todas las taquillas libres en t = 0.</td></tr>
+    <tr><th>Número de réplicas</th><td>r = {{ config.replicas }}, cada una con semilla {{ config.semilla }}, {{ config.semilla + 1 }}, … Se verifica abajo con la fórmula de longitud de réplica.</td></tr>
+    <tr><th>Tamaño de muestra</th><td>{{ config.replicas }} promedios por escenario ({{ config.replicas * (config.n_carros - config.calentamiento) }} carros útiles por escenario).</td></tr>
+    <tr><th>Números aleatorios comunes</th><td>Todos los escenarios usan las mismas semillas: los mismos carros llegan con los mismos tiempos de pago.
+      Así la diferencia entre escenarios se debe solo al número de taquillas y se pueden usar pruebas pareadas.</td></tr>
+    <tr><th>Variables de entrada</th><td>Tiempo entre llegadas ~ Exponencial({{ config.media_llegadas }}), pago ~ Normal({{ config.media_pago }}, {{ config.desv_pago }}), arranque ~ Normal({{ config.media_arranque }}, {{ config.desv_arranque }}), número de taquillas.</td></tr>
+    <tr><th>Variables de salida</th><td><strong>W̄</strong>: tiempo promedio en el sistema por réplica (variable de interés); Wq̄: espera promedio en fila.</td></tr>
+  </table>
+
+  <h3 style="margin-top:1.3rem">¿Cuántos carros descartar? Método de Welch</h3>
+  <p class="nota">Promedio del tiempo en el sistema por bloques de 50 carros, calculado sobre las {{ config.replicas }} réplicas.
+    Mientras la curva sube, el peaje todavía se está llenando (efecto de empezar vacío); cuando se aplana, empieza el estado estable.
+    La línea vertical marca el calentamiento elegido. En el escenario saturado la curva no se aplana nunca.</p>
+  <div class="tarjeta"><div class="grafica"><canvas id="g-welch" role="img" aria-label="Promedio por bloques de carros para elegir el calentamiento"></canvas></div></div>
+
+  <h3 style="margin-top:1.3rem">¿Son suficientes {{ config.replicas }} réplicas?</h3>
+  <p class="nota">Con la corrida actual como piloto se calcula cuántas réplicas hacen falta para estimar la media con error ±{{ config.epsilon }} min
+    al {{ conf }} % de confianza. Si las réplicas son normales se usa n = (s·t/ε)²; si no, Tchebycheff n = (1/α)(s/ε)².</p>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="cen">Taquillas</th><th>s</th><th class="izq">Fórmula</th><th>Réplicas necesarias</th><th class="cen">¿Alcanza con {{ config.replicas }}?</th></tr></thead>
+      <tbody>
+      {% for e in E %}
+        <tr><td class="cen">{{ e.c }}</td><td>{{ f(e.descriptivos.desviacion, 4) }}</td><td class="izq mono">{{ e.longitud.formula }}</td>
+          <td>{{ e.longitud.n }}</td>
+          <td class="cen">{% if not e.estable %}<span class="chip mal">Saturado: no converge</span>{% elif e.longitud.suficiente %}<span class="chip ok">Sí</span>{% else %}<span class="chip neutro">No, aumentar r</span>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 8. Estudio estadístico ============ -->
+<section aria-labelledby="t-estadistica">
+  <span class="seccion-num">8 · Estudio estadístico de la variable de interés</span>
+  <h2 id="t-estadistica">Tiempo promedio en el sistema por réplica</h2>
+
+  <details class="tarjeta">
+    <summary>Tabla de resultados de las {{ config.replicas }} réplicas (min)</summary>
+    <div class="tabla-scroll alta">
+      <table class="datos">
+        <thead><tr><th class="cen">Réplica</th><th class="cen">Semilla</th>
+          {% for e in E %}<th>W̄ · {{ e.c }} taq.</th>{% endfor %}
+          {% for e in E %}<th>Wq̄ · {{ e.c }} taq.</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for i in range(config.replicas) %}
+          <tr><td class="cen">{{ i + 1 }}</td><td class="cen">{{ E[0].replicas[i].semilla }}</td>
+            {% for e in E %}<td>{{ f(e.replicas[i].t_sistema) }}</td>{% endfor %}
+            {% for e in E %}<td>{{ f(e.replicas[i].t_espera) }}</td>{% endfor %}</tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <h3 style="margin-top:1.3rem">Estadísticos descriptivos (min)</h3>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="izq">Estadístico</th>{% for e in E %}<th>{{ e.c }} taquillas</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for clave, nombre, d in [
+          ('n', 'Réplicas', 0), ('media', 'Media', 3), ('mediana', 'Mediana', 3),
+          ('varianza', 'Varianza', 4), ('desviacion', 'Desviación estándar', 4), ('cv', 'Coef. de variación (%)', 1),
+          ('minimo', 'Mínimo', 3), ('maximo', 'Máximo', 3), ('rango', 'Rango', 3),
+          ('q1', 'Cuartil 1', 3), ('q3', 'Cuartil 3', 3), ('asimetria', 'Asimetría', 3), ('curtosis', 'Curtosis', 3)] %}
+        <tr><td class="izq">{{ nombre }}</td>{% for e in E %}<td>{{ f(e.descriptivos[clave], d) }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:1.3rem">Réplicas por escenario</h3>
+  <div class="tarjeta"><div class="grafica"><canvas id="g-replicas" role="img" aria-label="Tiempo promedio de cada réplica por escenario"></canvas></div></div>
+  <p class="nota" style="margin-top:.5rem">Eje vertical en escala logarítmica para ver juntos el escenario saturado y los estables.
+    Las líneas punteadas horizontales son las medias de cada escenario.</p>
+
+  <h3 style="margin-top:1.3rem">Histogramas</h3>
+  <div class="rejilla">
+    {% for e in E %}
+    <div class="tarjeta">
+      <h3>{{ e.c }} taquillas</h3>
+      <div class="grafica baja"><canvas id="g-hist-{{ e.c }}" role="img" aria-label="Histograma con {{ e.c }} taquillas"></canvas></div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h3 style="margin-top:1.3rem">Diagramas de caja</h3>
+  <div class="tarjeta cajas">
+    {% set ancho, x0, x1 = 680, 110, 660 %}
+    <svg viewBox="0 0 {{ ancho }} {{ 70 * E | length + 10 }}" role="img" aria-label="Diagramas de caja por escenario, cada uno con su propia escala">
+      {% for e in E %}
+        {% set b = e.caja %}
+        {% set lo, hi = b.escala_min, b.escala_max %}
+        {% set k = (x1 - x0) / ((hi - lo) or 1) %}
+        {% set y = 70 * loop.index0 + 25 %}
+        <text x="0" y="{{ y + 5 }}" font-size="14" font-weight="600" fill="#23272b">{{ e.c }} taquillas</text>
+        <line x1="{{ x0 + (b.min - lo) * k }}" x2="{{ x0 + (b.q1 - lo) * k }}" y1="{{ y }}" y2="{{ y }}" stroke="#23272b"/>
+        <line x1="{{ x0 + (b.q3 - lo) * k }}" x2="{{ x0 + (b.max - lo) * k }}" y1="{{ y }}" y2="{{ y }}" stroke="#23272b"/>
+        <line x1="{{ x0 + (b.min - lo) * k }}" x2="{{ x0 + (b.min - lo) * k }}" y1="{{ y - 8 }}" y2="{{ y + 8 }}" stroke="#23272b"/>
+        <line x1="{{ x0 + (b.max - lo) * k }}" x2="{{ x0 + (b.max - lo) * k }}" y1="{{ y - 8 }}" y2="{{ y + 8 }}" stroke="#23272b"/>
+        <rect x="{{ x0 + (b.q1 - lo) * k }}" y="{{ y - 14 }}" width="{{ [(b.q3 - b.q1) * k, 1] | max }}" height="28" fill="#fdf1c7" stroke="#23272b"/>
+        <line x1="{{ x0 + (b.mediana - lo) * k }}" x2="{{ x0 + (b.mediana - lo) * k }}" y1="{{ y - 14 }}" y2="{{ y + 14 }}" stroke="#a4361c" stroke-width="3"/>
+        {% for a in b.atipicos %}<circle cx="{{ x0 + (a - lo) * k }}" cy="{{ y }}" r="4" fill="none" stroke="#a4361c"/>{% endfor %}
+        <text x="{{ x0 }}" y="{{ y + 32 }}" font-size="11" fill="#5b625c">{{ f(lo, 2) }}</text>
+        <text x="{{ x1 }}" y="{{ y + 32 }}" font-size="11" fill="#5b625c" text-anchor="end">{{ f(hi, 2) }} min</text>
+        <text x="{{ x0 + (b.mediana - lo) * k }}" y="{{ y + 32 }}" font-size="11" fill="#a4361c" text-anchor="middle">Me {{ f(b.mediana, 2) }}</text>
+      {% endfor %}
+    </svg>
+    <p class="nota">Cada caja tiene su propia escala (de su mínimo a su máximo). Línea roja: mediana; círculos: valores atípicos (fuera de 1.5·RIC).</p>
+  </div>
+
+  <h3 style="margin-top:1.3rem">Análisis del comportamiento</h3>
+  <ul class="lista tarjeta">
+    {% for e in E %}
+    {% set d = e.descriptivos %}
+    <li><strong>{{ e.c }} taquillas (ρ = {{ f(e.carga, 2) }}):</strong>
+      {% if not e.estable %}
+        el peaje está saturado; el tiempo promedio es de {{ f(d.media, 1) }} min (CV = {{ f(d.cv, 1) }} %), muy por encima de la meta,
+        porque la fila crece durante toda la corrida: el resultado depende de cuántos carros se simulen y no existe un estado estable.
+      {% else %}
+        un carro pasa en promedio {{ f(d.media, 2) }} min en el peaje (mediana {{ f(d.mediana, 2) }} min), con una dispersión
+        {{ "baja" if d.cv < 10 else ("moderada" if d.cv < 25 else "alta") }} (CV = {{ f(d.cv, 1) }} %).
+        {% if d.asimetria > 0.5 %}La distribución tiene sesgo a la derecha (asimetría {{ f(d.asimetria, 2) }}): algunas réplicas con rachas de llegadas generan filas más largas que el promedio.
+        {% elif d.asimetria < -0.5 %}La distribución tiene sesgo a la izquierda (asimetría {{ f(d.asimetria, 2) }}).
+        {% else %}La distribución es aproximadamente simétrica (asimetría {{ f(d.asimetria, 2) }}).{% endif %}
+        {{ "Todas las réplicas están por debajo de" if d.maximo < config.meta else ("Algunas réplicas superan" if d.minimo < config.meta else "Todas las réplicas superan") }} la meta de {{ f(config.meta, 1) }} min.
+      {% endif %}</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<!-- ============ 9. Pruebas de hipótesis ============ -->
+<section aria-labelledby="t-hipotesis">
+  <span class="seccion-num">9 · Pruebas de hipótesis</span>
+  <h2 id="t-hipotesis">Pruebas de hipótesis (α = {{ config.alfa }})</h2>
+
+  <h3>9.1 ¿Las réplicas son normales? (decide qué prueba e intervalo usar)</h3>
+  <p class="nota">H0: el tiempo promedio por réplica sigue una distribución normal. H1: no sigue una normal.
+    Se decide con Shapiro-Wilk, recomendada para muestras pequeñas; Kolmogorov-Smirnov se reporta como referencia.</p>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="cen">Taquillas</th><th>W (Shapiro)</th><th>Valor-p</th><th>D (KS)</th><th>Valor-p</th><th class="cen">Decisión</th><th class="izq">Consecuencia</th></tr></thead>
+      <tbody>
+      {% for e in E %}{% set n = e.normalidad %}
+        <tr><td class="cen">{{ e.c }}</td><td>{{ f(n.w, 4) }}</td><td>{{ f(n.p_sw, 4) }}</td><td>{{ f(n.d, 4) }}</td><td>{{ f(n.p_ks, 4) }}</td>
+          <td class="cen">{% if n.normal %}<span class="chip ok">No se rechaza H0</span>{% else %}<span class="chip mal">Se rechaza H0</span>{% endif %}</td>
+          <td class="izq">{{ "t de Student e IC normal" if n.normal else "Wilcoxon e IC de Tchebycheff" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:1.3rem">9.2 ¿El escenario cumple la meta?</h3>
+  <p>H0: μ ≥ {{ f(config.meta, 1) }} min (el escenario <em>no</em> cumple) &nbsp;·&nbsp; H1: μ &lt; {{ f(config.meta, 1) }} min (el escenario cumple).
+    Prueba de cola izquierda. Si las réplicas son normales se usa t de Student; si no, Wilcoxon de rangos con signo, que no supone normalidad.</p>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="cen">Taquillas</th><th>Media</th><th class="izq">Prueba</th><th>Estadístico</th><th>Valor-p</th><th class="cen">Decisión</th><th class="izq">Interpretación</th></tr></thead>
+      <tbody>
+      {% for e in E %}{% set m = e.meta %}
+        <tr><td class="cen">{{ e.c }}</td><td>{{ f(e.descriptivos.media) }}</td><td class="izq">{{ m.nombre }}</td>
+          <td>{{ m.simbolo }} = {{ f(m.estadistico, 3) }}</td><td>{{ "%.2e"|format(m.p) if m.p < 0.001 else f(m.p, 4) }}</td>
+          <td class="cen">{{ decision(m.rechaza) }}</td>
+          <td class="izq">{{ ("Hay evidencia de que el tiempo promedio es menor que " ~ f(config.meta, 1) ~ " min.") if m.rechaza else ("No hay evidencia de que el tiempo promedio sea menor que " ~ f(config.meta, 1) ~ " min.") }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:1.3rem">9.3 ¿Agregar taquillas reduce el tiempo? (comparación de escenarios)</h3>
+  <p>H0: μ<sub>A</sub> − μ<sub>B</sub> ≤ 0 (más taquillas no reduce el tiempo) &nbsp;·&nbsp; H1: μ<sub>A</sub> − μ<sub>B</sub> &gt; 0 (lo reduce).
+    Las réplicas son pareadas (mismas semillas), así que se usa t pareada si las diferencias son normales, o Wilcoxon pareada si no.</p>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="cen">A → B</th><th>Diferencia media</th><th>Reducción</th><th class="izq">Prueba</th><th>Estadístico</th><th>Valor-p</th><th class="cen">Decisión</th></tr></thead>
+      <tbody>
+      {% for c in r.comparaciones %}
+        <tr><td class="cen">{{ c.a }} → {{ c.b }} taq.</td><td>{{ f(c.diferencia) }} min</td><td>{{ f(c.reduccion, 1) }} %</td>
+          <td class="izq">{{ c.nombre }}</td><td>{{ c.simbolo }} = {{ f(c.estadistico, 3) }}</td>
+          <td>{{ "%.2e"|format(c.p) if c.p < 0.001 else f(c.p, 4) }}</td><td class="cen">{{ decision(c.rechaza) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 10. Intervalo de confianza ============ -->
+<section aria-labelledby="t-ic">
+  <span class="seccion-num">10 · Intervalo de confianza</span>
+  <h2 id="t-ic">Intervalo de confianza del {{ conf }} % para el tiempo promedio en el sistema μ</h2>
+  <div class="rejilla-2">
+    <div class="tarjeta"><h3>Datos normales</h3><span class="formula">x̄ ± t(α/2, r−1) · s / √r</span><p class="nota">Más estrecho; requiere normalidad.</p></div>
+    <div class="tarjeta"><h3>Caso general (Tchebycheff)</h3><span class="formula">x̄ ± s / √(r·α)</span><p class="nota">Más amplio; no supone ninguna distribución.</p></div>
+  </div>
+  <div class="tabla-scroll" style="margin-top:1rem">
+    <table class="datos">
+      <thead><tr><th class="cen">Taquillas</th><th>Estimación puntual x̄</th><th>IC normal</th><th>IC general</th><th class="cen">Se usa</th><th>Intervalo elegido</th><th class="cen">¿Bajo la meta?</th></tr></thead>
+      <tbody>
+      {% for e in E %}
+        <tr><td class="cen">{{ e.c }}</td><td>{{ f(e.ic.media) }}</td><td>{{ ic(e.ic.normal) }}</td><td>{{ ic(e.ic.general) }}</td>
+          <td class="cen">{{ "Normal" if e.ic.elegido == "normal" else "General" }}</td>
+          <td><strong>{{ ic(e.ic.intervalo) }}</strong></td>
+          <td class="cen">{% if e.ic.intervalo[1] < config.meta %}<span class="chip ok">Sí, todo el intervalo</span>{% elif e.ic.intervalo[0] < config.meta %}<span class="chip neutro">Parcialmente</span>{% else %}<span class="chip mal">No</span>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <ul class="lista tarjeta" style="margin-top:1rem">
+    {% for e in E %}
+    <li>Con <strong>{{ e.c }} taquillas</strong>, con un {{ conf }} % de confianza el tiempo promedio que un carro pasa en el peaje está entre
+      <strong>{{ f(e.ic.intervalo[0], 2) }}</strong> y <strong>{{ f(e.ic.intervalo[1], 2) }}</strong> minutos
+      (estimación puntual {{ f(e.ic.media, 2) }} min, margen ±{{ f(e.ic.margen, 3) }}).</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<!-- ============ 11. Escenarios y sensibilidad ============ -->
+<section aria-labelledby="t-escenarios">
+  <span class="seccion-num">11 · Análisis de escenarios y sensibilidad</span>
+  <h2 id="t-escenarios">Situación actual vs. propuestas</h2>
+  <dl class="indicadores">
+    {% for e in E %}
+    <div><dt>{{ e.c }} taquillas{{ " · actual" if loop.first }} · ρ = {{ f(e.carga, 2) }}</dt>
+      <dd>{{ f(e.descriptivos.media, 2) }} <span>min en el sistema · espera {{ f(e.espera_media, 2) }}</span></dd>
+      <dd style="font-size:1rem;margin-top:.4rem">{% if e.cumple %}<span class="chip ok">Cumple la meta</span>{% elif not e.estable %}<span class="chip mal">Saturado</span>{% else %}<span class="chip mal">No cumple</span>{% endif %}</dd></div>
+    {% endfor %}
+  </dl>
+
+  <h3 style="margin-top:1.3rem">Sensibilidad a la demanda</h3>
+  <p class="nota">Tiempo promedio en el sistema (min) si la demanda cambia. Cada celda es el promedio de {{ config.replicas }} réplicas.
+    En verde, los casos con media por debajo de la meta de {{ f(config.meta, 1) }} min.</p>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr><th class="izq">Demanda</th><th>λ (carros/min)</th>{% for c in config.taquillas %}<th>{{ c }} taquillas</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for fila in r.sensibilidad %}
+        <tr><td class="izq">{{ "Actual" if fila.factor == 1 else ("%+.0f %%"|format((fila.factor - 1) * 100)) }}</td><td>{{ f(fila.lambda, 3) }}</td>
+          {% for v in fila.valores %}<td><span class="chip {{ 'ok' if v.cumple else ('mal' if v.carga >= 1 else 'neutro') }}">{{ f(v.w, 2) }}</span></td>{% endfor %}</tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 12. Conclusión ============ -->
+<section aria-labelledby="t-conclusion" class="conclusion">
+  <span class="seccion-num">12 · Conclusiones y toma de decisiones</span>
+  <h2 id="t-conclusion">
+    {% if r.recomendado %}Se recomienda operar con {{ r.recomendado.c }} taquillas{% else %}Ningún escenario cumple la meta{% endif %}
+  </h2>
+  {% set a = r.actual %}
+  <ul class="lista">
+    <li><strong>Situación actual ({{ a.c }} taquillas):</strong>
+      {% if not a.estable %}la carga es ρ = {{ f(a.carga, 2) }} ≥ 1: llegan más carros de los que se pueden atender, la fila crece sin límite y un carro pasa en promedio
+        {{ f(a.descriptivos.media, 1) }} min en el peaje (IC {{ conf }} %: {{ ic(a.ic.intervalo, 1) }}).
+      {% else %}un carro pasa en promedio {{ f(a.descriptivos.media, 2) }} min (IC {{ conf }} %: {{ ic(a.ic.intervalo, 2) }}),
+        {{ "cumple" if a.cumple else "no cumple" }} la meta.{% endif %}</li>
+    {% for e in E[1:] %}
+    <li><strong>{{ e.c }} taquillas:</strong> {{ f(e.descriptivos.media, 2) }} min (IC {{ conf }} %: {{ ic(e.ic.intervalo, 2) }});
+      la prueba de la meta {{ "rechaza H0: cumple" if e.meta.rechaza else "no rechaza H0: no se demuestra que cumpla" }}
+      (valor-p {{ "%.2e"|format(e.meta.p) if e.meta.p < 0.001 else f(e.meta.p, 4) }}).</li>
+    {% endfor %}
+    {% if r.recomendado %}
+    <li><strong>Decisión:</strong> {{ r.recomendado.c }} taquillas es el menor número con el que el tiempo promedio en el sistema es
+      significativamente menor que {{ f(config.meta, 1) }} min y todo el intervalo de confianza queda por debajo de la meta.
+      Frente a la situación actual, el tiempo baja de {{ f(a.descriptivos.media, 2) }} a {{ f(r.recomendado.descriptivos.media, 2) }} min.</li>
+    {% else %}
+    <li><strong>Decisión:</strong> con los escenarios elegidos no se alcanza la meta; hay que evaluar más taquillas o reducir el tiempo de servicio (por ejemplo, pago electrónico).</li>
+    {% endif %}
+    {% if r.recomendado %}
+    {% set idx = config.taquillas.index(r.recomendado.c) %}
+    {% set falla = r.sensibilidad | selectattr("factor", "gt", 1) | rejectattr("valores." ~ idx ~ ".cumple") | list %}
+    <li><strong>Sensibilidad:</strong>
+      {% if falla %}con {{ r.recomendado.c }} taquillas la meta deja de cumplirse si la demanda sube un
+        {{ "%.0f"|format((falla[0].factor - 1) * 100) }} % ({{ f(falla[0].valores[idx].w, 2) }} min); conviene revisar la decisión si el tráfico crece.
+      {% else %}con {{ r.recomendado.c }} taquillas la meta se mantiene aun si la demanda sube un
+        {{ "%.0f"|format((r.sensibilidad[-1].factor - 1) * 100) }} % ({{ f(r.sensibilidad[-1].valores[idx].w, 2) }} min), así que la decisión es robusta.
+      {% endif %}</li>
+    {% endif %}
+    <li><strong>Limitaciones:</strong> los tiempos de pago y arranque son supuestos (el dataset no los registra) y la demanda se toma constante, sin horas pico.</li>
+  </ul>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    var colores = ['#1f6f6b', '#a4561c', '#3b5b92', '#7a4d8c', '#5b625c', '#b08900'];
+    var escenarios = [
+      {% for e in r.escenarios %}
+      { c: {{ e.c }}, datos: {{ e.datos | tojson }}, media: {{ e.descriptivos.media }}, welch: {{ e.welch | tojson }},
+        hist: {{ e.histograma | tojson }} }{{ "," if not loop.last }}
+      {% endfor %}
+    ];
+    var replicas = escenarios[0].datos.map(function (_, i) { return i + 1; });
+
+    new Chart(document.getElementById('g-replicas'), {
+      type: 'line',
+      data: {
+        labels: replicas,
+        datasets: escenarios.flatMap(function (e, i) {
+          return [
+            { label: e.c + ' taquillas', data: e.datos, borderColor: colores[i], backgroundColor: colores[i],
+              borderWidth: 2, pointRadius: 3 },
+            { label: 'Media ' + e.c + ' taq.', data: replicas.map(function () { return e.media; }),
+              borderColor: colores[i], borderDash: [6, 4], borderWidth: 1, pointRadius: 0 }
+          ];
+        })
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: { title: { display: true, text: 'Réplica' } },
+          y: { type: 'logarithmic', title: { display: true, text: 'Tiempo promedio en el sistema (min, escala log)' } }
+        },
+        plugins: { legend: { position: 'bottom', labels: { filter: function (it) { return it.text.indexOf('Media') !== 0; } } } }
+      }
+    });
+
+    var bloques = escenarios[0].welch.map(function (_, i) { return (i * 50 + 1) + '–' + (i * 50 + 50); });
+    var calentamiento = {{ config.calentamiento }};
+    new Chart(document.getElementById('g-welch'), {
+      type: 'line',
+      data: { labels: bloques, datasets: escenarios.map(function (e, i) {
+        return { label: e.c + ' taquillas', data: e.welch, borderColor: colores[i], backgroundColor: colores[i], borderWidth: 2, pointRadius: 2 };
+      }) },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: { x: { title: { display: true, text: 'Bloque de carros' }, ticks: { maxRotation: 60, font: { size: 10 } } },
+                  y: { type: 'logarithmic', title: { display: true, text: 'Tiempo promedio en el sistema (min, escala log)' } } },
+        plugins: { legend: { position: 'bottom' } }
+      },
+      plugins: [{
+        id: 'linea',
+        afterDatasetsDraw: function (chart) {
+          var x = chart.scales.x.getPixelForValue(calentamiento / 50 - 0.5), a = chart.chartArea, ctx = chart.ctx;
+          ctx.save(); ctx.setLineDash([6, 4]); ctx.strokeStyle = '#23272b'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.setLineDash([]);
+          ctx.fillStyle = '#23272b'; ctx.font = '600 12px Barlow, sans-serif';
+          ctx.fillText('Fin del calentamiento (' + calentamiento + ' carros)', x + 6, a.top + 14); ctx.restore();
+        }
+      }]
+    });
+
+    escenarios.forEach(function (e, i) {
+      new Chart(document.getElementById('g-hist-' + e.c), {
+        type: 'bar',
+        data: { labels: e.hist.etiquetas, datasets: [{ label: 'Réplicas', data: e.hist.frecuencias,
+                backgroundColor: colores[i], barPercentage: 1, categoryPercentage: 1, borderColor: '#fff', borderWidth: 1 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          scales: { x: { title: { display: true, text: 'Tiempo promedio (min)' }, ticks: { maxRotation: 60, font: { size: 10 } } },
+                    y: { title: { display: true, text: 'Frecuencia' }, ticks: { precision: 0 }, beginAtZero: true } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

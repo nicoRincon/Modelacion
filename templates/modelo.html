@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block titulo %}Modelo · Simulación del peaje{% endblock %}
+
+{% block cabecera %}
+<div class="cabecera">
+  <div class="interior">
+    <p class="ceja">Puntos 1 a 4</p>
+    <h1>Sistema, problema y modelo</h1>
+    <p class="lead">Lo necesario para entender el modelo: cómo funciona el peaje, qué se quiere
+      estudiar, con qué variables y con qué reglas se calcula cada carro.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block contenido %}
+<!-- 1. Sistema -->
+<section aria-labelledby="t-sistema">
+  <span class="seccion-num">1 · Definición del sistema</span>
+  <h2 id="t-sistema">Un peaje con cola única y varias taquillas</h2>
+  <p>Los carros llegan al peaje de forma aleatoria y forman una sola fila. Cada carro pasa a la primera
+    taquilla que se libera, paga y arranca. La taquilla queda ocupada desde que empieza el pago hasta que
+    el carro arranca; en ese momento puede recibir al siguiente. El peaje opera sin interrupción, por eso
+    el modelo es <strong>no terminal</strong>: se estudia su comportamiento en estado estable, descartando los
+    primeros carros (periodo de calentamiento) en los que el peaje arranca vacío.</p>
+
+  <table class="ficha">
+    <tr><th>Entradas</th><td>Carros que llegan (tasa λ = {{ "%.3f"|format(lam) }} carros/min) y número de taquillas abiertas.</td></tr>
+    <tr><th>Salidas</th><td>Tiempo en el sistema, tiempo en espera, porcentaje de carros que esperan y ocupación de cada taquilla.</td></tr>
+    <tr><th>Entidades</th><td>Carros.</td></tr>
+    <tr><th>Recursos</th><td>Taquillas de cobro (c = {{ p.n_taquillas }} en la situación actual).</td></tr>
+    <tr><th>Procesos</th><td><ul>
+      <li>Llegada del carro al peaje.</li>
+      <li>Espera en la fila si todas las taquillas están ocupadas.</li>
+      <li>Pago en la taquilla.</li>
+      <li>Arranque y salida (libera la taquilla).</li></ul></td></tr>
+    <tr><th>Restricciones</th><td><ul>
+      <li>Una taquilla atiende un solo carro a la vez.</li>
+      <li>Cola única con disciplina FIFO (primero en llegar, primero en ser atendido).</li>
+      <li>Un carro no puede empezar a pagar antes de llegar ni antes de que se libere una taquilla.</li>
+      <li>Los tiempos de pago y arranque son positivos.</li>
+      <li>La fila no tiene límite de capacidad (supuesto) y no hay abandonos.</li>
+      <li>El sistema solo se estabiliza si la carga ρ es menor que 1.</li></ul></td></tr>
+  </table>
+
+  <h3 style="margin-top:1.2rem">Tabla de eventos</h3>
+  <table class="ficha">
+    <tr><th>Variable de estado</th><td>{{ tabla_eventos["Variable de estado"] }}</td></tr>
+    <tr><th>Entidades</th><td>{{ tabla_eventos["Entidades"] | join(", ") }}</td></tr>
+    <tr><th>Eventos</th><td><ul>{% for e in tabla_eventos["Eventos"] %}<li>{{ e }}</li>{% endfor %}</ul></td></tr>
+    <tr><th>Evento secundario</th><td><ul>{% for e in tabla_eventos["Evento secundario"] %}<li>{{ e }}</li>{% endfor %}</ul></td></tr>
+    <tr><th>Actividades</th><td><ul>{% for e in tabla_eventos["Actividades"] %}<li>{{ e }}</li>{% endfor %}</ul></td></tr>
+  </table>
+</section>
+
+<!-- 2. Problema -->
+<section aria-labelledby="t-problema">
+  <span class="seccion-num">2 · Planteamiento del problema</span>
+  <h2 id="t-problema">¿Alcanzan dos taquillas?</h2>
+  <div class="rejilla">
+    <div class="tarjeta">
+      <h3>Situación</h3>
+      <p>El peaje opera con {{ p.n_taquillas }} taquillas y recibe en promedio {{ "%.3f"|format(lam) }} carros por minuto.</p>
+    </div>
+    <div class="tarjeta">
+      <h3>Causa</h3>
+      <p>Cada carro ocupa la taquilla {{ "%.1f"|format(p.media_pago + p.media_arranque) }} min en promedio, así que la carga es
+        ρ = {{ "%.2f"|format(carga) }}: llegan más carros de los que se pueden atender y la fila crece.</p>
+    </div>
+    <div class="tarjeta">
+      <h3>Variable de interés</h3>
+      <p><strong>W</strong>: tiempo promedio que un carro permanece en el peaje (espera + pago + arranque), en minutos.</p>
+    </div>
+    <div class="tarjeta">
+      <h3>Pregunta</h3>
+      <p>¿Cuál es el <strong>mínimo número de taquillas</strong> con el que el tiempo promedio en el sistema es
+        <strong>menor que {{ "%.0f"|format(meta) }} minutos</strong>, con un 95 % de confianza?</p>
+    </div>
+  </div>
+  <p class="nota" style="margin-top:.8rem">La meta de {{ "%.0f"|format(meta) }} min es un nivel de servicio definido por el equipo
+    y se puede cambiar en la página del experimento.</p>
+</section>
+
+<!-- 3. Variables -->
+<section aria-labelledby="t-variables">
+  <span class="seccion-num">3 · Variables y parámetros</span>
+  <h2 id="t-variables">Variables y parámetros del modelo</h2>
+  <div class="tabla-scroll">
+    <table class="datos">
+      <thead><tr>
+        <th class="izq">Nombre</th><th class="izq">Descripción</th><th class="izq">Tipo</th><th class="izq">Unidad</th>
+        <th class="izq">Distribución y parámetros</th><th class="izq">Fuente</th>
+      </tr></thead>
+      <tbody>
+        <tr><td class="izq">N</td><td class="izq">Carros que llegan en un minuto</td><td class="izq">Aleatoria discreta</td><td class="izq">carros/min</td>
+            <td class="izq">Poisson(λ = {{ "%.3f"|format(lam) }})</td><td class="izq">Mock Traffic Data (Kaggle), ajuste de la entrega anterior: χ² p ≈ 0.40, menor AIC</td></tr>
+        <tr><td class="izq">A</td><td class="izq">Tiempo entre llegadas</td><td class="izq">Aleatoria continua</td><td class="izq">min/carro</td>
+            <td class="izq">Exponencial(media = 1/λ = {{ "%.2f"|format(p.media_llegadas) }})</td><td class="izq">Se deduce de N: llegadas Poisson ⇔ tiempos entre llegadas exponenciales</td></tr>
+        <tr><td class="izq">P</td><td class="izq">Tiempo de pago</td><td class="izq">Aleatoria continua</td><td class="izq">min</td>
+            <td class="izq">Normal(μ = {{ p.media_pago }}, σ = {{ p.desv_pago }}), mínimo 0.05</td><td class="izq">Supuesto del equipo: el dataset no registra tiempos de servicio</td></tr>
+        <tr><td class="izq">R</td><td class="izq">Tiempo de arranque</td><td class="izq">Aleatoria continua</td><td class="izq">min</td>
+            <td class="izq">Normal(μ = {{ p.media_arranque }}, σ = {{ p.desv_arranque }}), mínimo 0.02</td><td class="izq">Supuesto del equipo</td></tr>
+        <tr><td class="izq">c</td><td class="izq">Número de taquillas abiertas</td><td class="izq">Parámetro de decisión</td><td class="izq">taquillas</td>
+            <td class="izq">{{ p.n_taquillas }} (actual); 3 y 4 (propuestas)</td><td class="izq">Escenarios del estudio</td></tr>
+        <tr><td class="izq">n</td><td class="izq">Carros simulados por réplica</td><td class="izq">Parámetro</td><td class="izq">carros</td>
+            <td class="izq">{{ p.n_carros }} (≈ {{ "%.0f"|format(p.n_carros * p.media_llegadas / 60) }} horas de operación)</td><td class="izq">Diseño del experimento</td></tr>
+        <tr><td class="izq">W</td><td class="izq">Tiempo en el sistema de cada carro</td><td class="izq">Variable de salida</td><td class="izq">min</td>
+            <td class="izq">Resulta de la simulación</td><td class="izq">Variable de interés</td></tr>
+        <tr><td class="izq">Wq</td><td class="izq">Tiempo en espera en la fila</td><td class="izq">Variable de salida</td><td class="izq">min</td>
+            <td class="izq">Resulta de la simulación</td><td class="izq">Indicador complementario</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="nota" style="margin-top:.6rem"><strong>Cambio respecto a la entrega anterior:</strong> allí se ajustó el conteo de
+    llegadas por minuto (Poisson). El simulador necesita el momento de cada llegada, así que usa la distribución equivalente del
+    tiempo entre llegadas (exponencial con la misma λ). El tiempo de recorrido entre casetas (Normal 10.02, 2.60) no se usa porque
+    ocurre fuera del peaje que se modela.</p>
+</section>
+
+<!-- 4. Relaciones -->
+<section aria-labelledby="t-relaciones">
+  <span class="seccion-num">4 · Relaciones lógico-matemáticas</span>
+  <h2 id="t-relaciones">Cómo se calcula cada carro i</h2>
+  <div class="rejilla-2">
+    <div class="tarjeta">
+      <ol class="pasos">
+        <li>Tiempo entre llegadas (transformada inversa, r ~ U(0,1)):
+          <span class="formula">A<sub>i</sub> = −{{ p.media_llegadas }} · ln(1 − r)</span></li>
+        <li>Llegada (acumulado de la columna 1):
+          <span class="formula">L<sub>i</sub> = L<sub>i−1</sub> + A<sub>i</sub></span></li>
+        <li>Taquilla asignada: la que se libera primero (cola única FIFO).
+          <span class="formula">k = argmin<sub>j</sub> Libre<sub>j</sub></span></li>
+        <li>Inicio de atención: cuando llega si la taquilla está libre, o cuando se libera.
+          <span class="formula">I<sub>i</sub> = MAX(L<sub>i</sub>, Libre<sub>k</sub>)</span></li>
+        <li>Tiempos de pago y arranque:
+          <span class="formula">P<sub>i</sub> = NORM.INV(r, {{ p.media_pago }}, {{ p.desv_pago }})</span>
+          <span class="formula">R<sub>i</sub> = NORM.INV(r, {{ p.media_arranque }}, {{ p.desv_arranque }})</span></li>
+      </ol>
+    </div>
+    <div class="tarjeta">
+      <ol class="pasos" start="6">
+        <li>Salida (libera la taquilla k):
+          <span class="formula">S<sub>i</sub> = I<sub>i</sub> + P<sub>i</sub> + R<sub>i</sub>;   Libre<sub>k</sub> = S<sub>i</sub></span></li>
+        <li>Tiempo en espera y tiempo en el sistema:
+          <span class="formula">Wq<sub>i</sub> = I<sub>i</sub> − L<sub>i</sub>;   W<sub>i</sub> = S<sub>i</sub> − L<sub>i</sub></span></li>
+        <li>Promedio móvil (para ver la estabilización):
+          <span class="formula">W̄<sub>i</sub> = (W<sub>1</sub> + … + W<sub>i</sub>) / i</span></li>
+        <li>Resultado de una réplica (sin calentamiento de m carros):
+          <span class="formula">W̄ = Σ<sub>i&gt;m</sub> W<sub>i</sub> / (n − m)</span></li>
+        <li>Condición de estabilidad (carga):
+          <span class="formula">ρ = (E[P] + E[R]) / (c · E[A]) &lt; 1</span>
+          <span class="nota">Con c = {{ p.n_taquillas }}: ρ = {{ "%.2f"|format(carga) }} {{ "≥ 1, el peaje se satura" if carga >= 1 else "< 1, el peaje es estable" }}.</span></li>
+      </ol>
+    </div>
+  </div>
+</section>
+{% endblock %}

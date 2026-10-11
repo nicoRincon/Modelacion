@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Simulación del peaje{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='estilos.css') }}">
+</head>
+<body>
+  {% set paginas = [
+    ('inicio', 'Inicio'),
+    ('modelo', '1–4 · Modelo'),
+    ('peaje', '5 · Simulación'),
+    ('verificacion', '6 · Verificación'),
+    ('experimento', '7–12 · Experimento'),
+  ] %}
+  <header class="barra">
+    <div class="interior">
+      <a class="marca" href="{{ url_for('inicio') }}">Peaje · Modelación</a>
+      <nav aria-label="Secciones">
+        {% for ruta, texto in paginas %}
+        <a href="{{ url_for(ruta) }}" class="{{ 'activo' if request.endpoint == ruta else '' }}"
+           {% if request.endpoint == ruta %}aria-current="page"{% endif %}>{{ texto }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+  </header>
+
+  {% block cabecera %}{% endblock %}
+
+  <main>
+    {% block contenido %}{% endblock %}
+  </main>
+
+  <footer>Universidad de Cundinamarca · Modelación y simulación · Equipo: Johan, Angelica, Richard, Nicolas</footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
